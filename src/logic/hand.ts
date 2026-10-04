@@ -4,6 +4,16 @@ import { MUSCLES, type EquipmentId, type Exercise, type Muscle } from '../types'
 
 export type Rng = () => number;
 
+/** Everything dealing needs to know about the gym and the lifter right now. */
+export interface DealContext {
+  equipment: readonly EquipmentId[];
+  /** Hard sets per muscle this session (filler cards favor the least trained). */
+  trained: Record<Muscle, number>;
+  /** Cards whose muscles are at the fatigue cap are never dealt. */
+  isLocked?: (id: string) => boolean;
+  rng: Rng;
+}
+
 export interface HandState {
   hand: string[];
   drawPile: string[];
@@ -66,107 +76,97 @@ export function resolveDeck(deck: readonly string[], equipment: readonly Equipme
   return out;
 }
 
-export function startHand(deck: readonly string[], equipment: readonly EquipmentId[], rng: Rng): HandState {
-  const pile = shuffle(resolveDeck(deck, equipment, rng), rng);
-  const state: HandState = { hand: [], drawPile: pile, discard: [], swappedOut: [] };
-  return fillHand(state, equipment, emptyTrained(), rng);
+export function emptyTrained(): Record<Muscle, number> {
+  return Object.fromEntries(MUSCLES.map((m) => [m, 0])) as Record<Muscle, number>;
 }
 
-function emptyTrained(): Record<Muscle, number> {
-  return Object.fromEntries(MUSCLES.map((m) => [m, 0])) as Record<Muscle, number>;
+function dealable(id: string, state: HandState, ctx: DealContext): boolean {
+  const ex = findExercise(id);
+  return (
+    !!ex &&
+    isAvailable(ex, ctx.equipment) &&
+    !state.hand.includes(id) &&
+    !state.swappedOut.includes(id) &&
+    !ctx.isLocked?.(id)
+  );
+}
+
+export function startHand(deck: readonly string[], ctx: DealContext): HandState {
+  const pile = shuffle(resolveDeck(deck, ctx.equipment, ctx.rng), ctx.rng);
+  return fillHand({ hand: [], drawPile: pile, discard: [], swappedOut: [] }, ctx);
 }
 
 /**
  * When the deck runs dry, deal a card for the least-trained muscle this session
  * so the session drifts toward full-body coverage without the user browsing a list.
  */
-export function fillerCard(
-  state: HandState,
-  equipment: readonly EquipmentId[],
-  trained: Record<Muscle, number>,
-  rng: Rng,
-): string | undefined {
+export function fillerCard(state: HandState, ctx: DealContext): string | undefined {
   const used = new Set([...state.hand, ...state.discard, ...state.swappedOut]);
-  const candidates = EXERCISES.filter((e) => !used.has(e.id) && isAvailable(e, equipment));
+  const candidates = EXERCISES.filter((e) => !used.has(e.id) && dealable(e.id, state, ctx));
   if (candidates.length === 0) return undefined;
-  const muscles = shuffle(MUSCLES, rng)
+  const muscles = shuffle(MUSCLES, ctx.rng)
     .filter((m) => candidates.some((e) => e.primaryMuscles.includes(m)))
-    .sort((a, b) => trained[a] - trained[b]);
+    .sort((a, b) => ctx.trained[a] - ctx.trained[b]);
   const target = muscles[0];
   if (!target) return undefined;
   const pool = candidates.filter((e) => e.primaryMuscles.includes(target));
-  return pool[Math.floor(rng() * pool.length)]?.id;
+  return pool[Math.floor(ctx.rng() * pool.length)]?.id;
 }
 
-function drawOne(
-  state: HandState,
-  equipment: readonly EquipmentId[],
-  trained: Record<Muscle, number>,
-  rng: Rng,
-): HandState | undefined {
+function drawOne(state: HandState, ctx: DealContext): HandState | undefined {
   const drawPile = [...state.drawPile];
+  const skipped: string[] = [];
   while (drawPile.length > 0) {
     const id = drawPile.shift()!;
-    const ex = findExercise(id);
-    if (ex && isAvailable(ex, equipment) && !state.hand.includes(id) && !state.swappedOut.includes(id)) {
-      return { ...state, drawPile, hand: [...state.hand, id] };
-    }
+    if (dealable(id, state, ctx)) return { ...state, drawPile: [...drawPile, ...skipped], hand: [...state.hand, id] };
+    // Locked cards stay in the pile in case they become playable later.
+    if (ctx.isLocked?.(id)) skipped.push(id);
   }
-  const filler = fillerCard({ ...state, drawPile }, equipment, trained, rng);
-  if (filler) return { ...state, drawPile, hand: [...state.hand, filler] };
+  const rest = { ...state, drawPile: skipped };
+  const filler = fillerCard(rest, ctx);
+  if (filler) return { ...rest, hand: [...state.hand, filler] };
   // Everything has been played: reshuffle the discard pile.
   const reshuffled = shuffle(
-    state.discard.filter((id) => !state.hand.includes(id)),
-    rng,
+    state.discard.filter((id) => dealable(id, state, ctx)),
+    ctx.rng,
   );
   if (reshuffled.length === 0) return undefined;
-  const [id, ...rest] = reshuffled;
-  return { ...state, drawPile: rest, discard: [], hand: [...state.hand, id] };
+  const [id, ...others] = reshuffled;
+  return {
+    ...rest,
+    drawPile: [...others, ...skipped],
+    discard: state.discard.filter((d) => !reshuffled.includes(d)),
+    hand: [...state.hand, id],
+  };
 }
 
-export function fillHand(
-  state: HandState,
-  equipment: readonly EquipmentId[],
-  trained: Record<Muscle, number>,
-  rng: Rng,
-): HandState {
+export function fillHand(state: HandState, ctx: DealContext): HandState {
   let s = state;
   while (s.hand.length < config.deck.handSize) {
-    const next = drawOne(s, equipment, trained, rng);
+    const next = drawOne(s, ctx);
     if (!next) break;
     s = next;
   }
   return s;
 }
 
-/** The card was played out: discard it and draw a replacement. */
-export function finishCard(
-  state: HandState,
-  id: string,
-  equipment: readonly EquipmentId[],
-  trained: Record<Muscle, number>,
-  rng: Rng,
-): HandState {
+/** The card was played out (or is locked and discarded): discard it and draw a replacement. */
+export function finishCard(state: HandState, id: string, ctx: DealContext): HandState {
   if (!state.hand.includes(id)) return state;
   const s: HandState = {
     ...state,
     hand: state.hand.filter((h) => h !== id),
     discard: [...state.discard, id],
   };
-  return fillHand(s, equipment, trained, rng);
+  return fillHand(s, ctx);
 }
 
 /** "Machine taken": replace a card in place with the most similar available exercise. */
-export function swapCard(
-  state: HandState,
-  id: string,
-  equipment: readonly EquipmentId[],
-  rng: Rng,
-): HandState | undefined {
+export function swapCard(state: HandState, id: string, ctx: DealContext): HandState | undefined {
   const idx = state.hand.indexOf(id);
   if (idx < 0) return undefined;
   const exclude = [...state.hand, ...state.swappedOut, ...state.discard];
-  const alt = alternativesFor(id, equipment, exclude, rng)[0];
+  const alt = alternativesFor(id, ctx.equipment, exclude, ctx.rng).find((e) => !ctx.isLocked?.(e.id));
   if (!alt) return undefined;
   const hand = [...state.hand];
   hand[idx] = alt.id;

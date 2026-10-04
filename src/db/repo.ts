@@ -1,9 +1,10 @@
 import { config } from '../config';
 import { ALL_EQUIPMENT } from '../data/equipment';
 import { getExercise } from '../data/exercises';
-import { finishCard, startHand, swapCard, type HandState, type Rng } from '../logic/hand';
+import { lockedBy, muscleMeters, type Meters } from '../logic/fatigue';
+import { finishCard, startHand, swapCard, type DealContext, type HandState, type Rng } from '../logic/hand';
 import { prefillFor, type Prefill } from '../logic/prefill';
-import { setsByMuscle } from '../logic/volume';
+import { evaluateSet } from '../logic/strength';
 import type { LoggedSet, Session, Settings, Unit } from '../types';
 import { db } from './db';
 import { notify } from './sync';
@@ -36,7 +37,7 @@ export async function startSession(rng: Rng = Math.random, now = Date.now()): Pr
   const existing = await getActiveSession();
   if (existing) return existing;
   const settings = await getSettings();
-  const hand = startHand(settings.deck, settings.equipment, rng);
+  const hand = startHand(settings.deck, await dealContext(settings, undefined, rng, now));
   // Time-based ids stay unique across devices that sync to the same account.
   const last = await db.sessions.orderBy(':id').last();
   const session: Session = { id: Math.max(now, (last?.id ?? 0) + 1), startedAt: now, ...hand };
@@ -76,6 +77,41 @@ export async function historyFor(exerciseId: string, limit = 50): Promise<Logged
     .toArray();
 }
 
+/** Every set ever logged for an exercise (needed for PRs). */
+export async function allHistoryFor(exerciseId: string): Promise<LoggedSet[]> {
+  return db.sets
+    .where('[exerciseId+loggedAt]')
+    .between([exerciseId, -Infinity], [exerciseId, Infinity])
+    .toArray();
+}
+
+/** Sets from earlier workouts that still carry fatigue. */
+export async function recentPreviousSets(sessionId: number | undefined, now = Date.now()): Promise<LoggedSet[]> {
+  const since = now - config.volume.carryoverHours * 3_600_000;
+  const recent = await db.sets.where('loggedAt').above(since).toArray();
+  return recent.filter((s) => s.sessionId !== sessionId);
+}
+
+/** Session sets + carryover for every muscle. */
+export async function getMeters(sessionId: number | undefined, now = Date.now()): Promise<Meters> {
+  const [current, previous] = await Promise.all([
+    sessionId === undefined ? Promise.resolve([]) : setsForSession(sessionId),
+    recentPreviousSets(sessionId, now),
+  ]);
+  return muscleMeters(current, previous, now);
+}
+
+async function dealContext(settings: Settings, sessionId: number | undefined, rng: Rng, now = Date.now()): Promise<DealContext> {
+  const meters = await getMeters(sessionId, now);
+  const trained = Object.fromEntries(Object.entries(meters).map(([m, v]) => [m, v.sessionSets])) as DealContext['trained'];
+  return {
+    equipment: settings.equipment,
+    trained,
+    rng,
+    isLocked: (id) => lockedBy(getExercise(id), meters) !== null,
+  };
+}
+
 export async function getPrefill(exerciseId: string, unit: Unit): Promise<Prefill> {
   return prefillFor(getExercise(exerciseId), await historyFor(exerciseId, 10), unit);
 }
@@ -84,7 +120,18 @@ export async function logSet(
   input: Omit<LoggedSet, 'id' | 'loggedAt'>,
   now = Date.now(),
 ): Promise<LoggedSet> {
-  const set: LoggedSet = { ...input, loggedAt: now };
+  const ex = getExercise(input.exerciseId);
+  const history = await allHistoryFor(input.exerciseId);
+  const evaluation = evaluateSet(ex, input, history, input.sessionId);
+  // Sets on a locked card are junk volume: logged (never block the workout) but deal no damage.
+  const locked = lockedBy(ex, await getMeters(input.sessionId, now)) !== null;
+  const set: LoggedSet = {
+    ...input,
+    loggedAt: now,
+    damage: locked ? 0 : evaluation.damage,
+    isPR: evaluation.isPR,
+    e1rm: evaluation.e1rm,
+  };
   const id = await db.transaction('rw', db.sets, db.sessions, async () => {
     const newId = await db.sets.add(set);
     // Rest timer starts automatically after logging.
@@ -120,13 +167,9 @@ function handOf(s: Session): HandState {
 
 /** Discard the card and draw the next one. */
 export async function finishExercise(sessionId: number, exerciseId: string, rng: Rng = Math.random) {
-  const [session, settings, sets] = await Promise.all([
-    db.sessions.get(sessionId),
-    getSettings(),
-    setsForSession(sessionId),
-  ]);
+  const [session, settings] = await Promise.all([db.sessions.get(sessionId), getSettings()]);
   if (!session) return;
-  const next = finishCard(handOf(session), exerciseId, settings.equipment, setsByMuscle(sets), rng);
+  const next = finishCard(handOf(session), exerciseId, await dealContext(settings, sessionId, rng));
   await db.sessions.update(sessionId, { ...next, activeExerciseId: undefined });
   notify.session(sessionId);
 }
@@ -135,7 +178,7 @@ export async function finishExercise(sessionId: number, exerciseId: string, rng:
 export async function swapExercise(sessionId: number, exerciseId: string, rng: Rng = Math.random) {
   const [session, settings] = await Promise.all([db.sessions.get(sessionId), getSettings()]);
   if (!session) return false;
-  const next = swapCard(handOf(session), exerciseId, settings.equipment, rng);
+  const next = swapCard(handOf(session), exerciseId, await dealContext(settings, sessionId, rng));
   if (!next) return false;
   await db.sessions.update(sessionId, { ...next });
   notify.session(sessionId);

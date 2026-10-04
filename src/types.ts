@@ -87,4 +87,9 @@ export interface LoggedSet {
   reps: number;
   isWarmup: boolean;
   loggedAt: number;
+  /** Filled in when the set is logged (warm-ups deal 0). */
+  damage?: number;
+  isPR?: boolean;
+  /** Epley estimated 1RM in kg; null for bodyweight exercises. */
+  e1rm?: number | null;
 }

@@ -3,7 +3,7 @@ import { config } from '../config';
 import { ALL_EQUIPMENT } from '../data/equipment';
 import { getExercise } from '../data/exercises';
 import type { EquipmentId, LoggedSet } from '../types';
-import { alternativesFor, finishCard, resolveDeck, startHand, swapCard } from './hand';
+import { alternativesFor, emptyTrained, finishCard, resolveDeck, startHand, swapCard, type DealContext } from './hand';
 import { prefillFor } from './prefill';
 import { restPhase } from './rest';
 import { fromKg, toKg } from './units';
@@ -19,6 +19,10 @@ function seeded(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+const ctx = (rng: () => number, over: Partial<DealContext> = {}): DealContext => ({
+  equipment: ALL_EQUIPMENT, trained: emptyTrained(), rng, ...over,
+});
 
 const set = (exerciseId: string, over: Partial<LoggedSet> = {}): LoggedSet => ({
   sessionId: 1, exerciseId, weightKg: 60, reps: 8, isWarmup: false, loggedAt: 0, ...over,
@@ -76,7 +80,7 @@ describe('rest phases', () => {
 
 describe('hand', () => {
   it('deals a full hand from the deck', () => {
-    const s = startHand(config.deck.starter, ALL_EQUIPMENT, seeded(1));
+    const s = startHand(config.deck.starter, ctx(seeded(1)));
     expect(s.hand).toHaveLength(config.deck.handSize);
     expect(s.drawPile).toHaveLength(config.deck.starter.length - config.deck.handSize);
     for (const id of s.hand) expect(config.deck.starter).toContain(id);
@@ -92,14 +96,14 @@ describe('hand', () => {
   });
 
   it('swap replaces a card in place with a same-muscle alternative and never offers it back', () => {
-    const s = startHand(config.deck.starter, ALL_EQUIPMENT, seeded(3));
+    const s = startHand(config.deck.starter, ctx(seeded(3)));
     const target = s.hand[0];
-    const swapped = swapCard(s, target, ALL_EQUIPMENT, seeded(4))!;
+    const swapped = swapCard(s, target, ctx(seeded(4)))!;
     const alt = getExercise(swapped.hand[0]);
     expect(alt.id).not.toBe(target);
     expect(alt.primaryMuscles.some((m) => getExercise(target).primaryMuscles.includes(m))).toBe(true);
     expect(swapped.swappedOut).toContain(target);
-    const again = swapCard(swapped, alt.id, ALL_EQUIPMENT, seeded(5))!;
+    const again = swapCard(swapped, alt.id, ctx(seeded(5)))!;
     expect(again.hand[0]).not.toBe(target);
   });
 
@@ -111,12 +115,31 @@ describe('hand', () => {
 
   it('after the deck runs out, deals cards for the least-trained muscles', () => {
     const equipment: EquipmentId[] = ALL_EQUIPMENT;
-    let s = startHand(config.deck.starter, equipment, seeded(7));
+    let s = startHand(config.deck.starter, ctx(seeded(7), { equipment }));
     const trained = emptyMuscleMap();
     // Train everything except biceps a lot.
     for (const m of Object.keys(trained) as (keyof typeof trained)[]) trained[m] = m === 'biceps' ? 0 : 6;
-    for (let i = 0; i < 3; i++) s = finishCard(s, s.hand[0], equipment, trained, seeded(10 + i));
+    for (let i = 0; i < 3; i++) s = finishCard(s, s.hand[0], ctx(seeded(10 + i), { equipment, trained }));
     expect(s.hand).toHaveLength(config.deck.handSize);
     expect(s.hand.some((id) => getExercise(id).primaryMuscles.includes('biceps'))).toBe(true);
+  });
+
+  it('never deals locked cards, even as fillers', () => {
+    const lockedMuscle = (id: string) => getExercise(id).primaryMuscles.includes('chest');
+    let s = startHand(config.deck.starter, ctx(seeded(20), { isLocked: lockedMuscle }));
+    expect(s.hand.some(lockedMuscle)).toBe(false);
+    for (let i = 0; i < 6; i++) {
+      s = finishCard(s, s.hand[0], ctx(seeded(30 + i), { isLocked: lockedMuscle }));
+      expect(s.hand.some(lockedMuscle), s.hand.join()).toBe(false);
+    }
+    // The locked starter card waits in the draw pile rather than vanishing.
+    expect([...s.drawPile, ...s.discard, ...s.hand]).toContain('bench_press');
+  });
+
+  it('swap never offers a locked alternative', () => {
+    const s = { hand: ['bench_press'], drawPile: [], discard: [], swappedOut: [] };
+    const isLocked = (id: string) => id !== 'bench_press' && getExercise(id).primaryMuscles.includes('chest') && id !== 'dip';
+    const out = swapCard(s, 'bench_press', ctx(seeded(40), { isLocked }));
+    expect(out?.hand[0]).toBe('dip');
   });
 });

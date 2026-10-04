@@ -4,10 +4,10 @@ import { startSession } from '../../db/repo';
 import { useStorageInfo } from '../../db/sync';
 import type { Session } from '../../types';
 import type { Route } from '../App';
+import { Campfire } from '../art/Pixel';
 
 export function HomeScreen({ active, go }: { active: Session | null; go: (r: Route) => void }) {
   const lastDone = useLiveQuery(() => db.sessions.orderBy('startedAt').reverse().filter((s) => !!s.endedAt).first(), []);
-
   const storage = useStorageInfo();
 
   const begin = async () => {
@@ -18,26 +18,35 @@ export function HomeScreen({ active, go }: { active: Session | null; go: (r: Rou
   return (
     <div className="screen home">
       <header className="home-title">
-        <div className="logo">⚔️</div>
-        <h1>Gym Quest</h1>
-        <p className="muted">
-          {lastDone ? `Last quest: ${new Date(lastDone.startedAt).toLocaleDateString()}` : 'Your first quest awaits.'}
+        <h1>
+          GYM
+          <br />
+          QUEST
+        </h1>
+        <p className="home-sub">A strength roguelike</p>
+        <div className="campfire-wrap">
+          <Campfire size={128} />
+        </div>
+        <p className="home-last">
+          {lastDone
+            ? `Last quest: ${new Date(lastDone.startedAt).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`
+            : 'Rest by the fire. Your first quest awaits.'}
         </p>
       </header>
 
       <div className="bottom-actions">
-        <button className="btn btn-primary btn-huge" onClick={active ? () => go({ name: 'session' }) : begin}>
-          {active ? 'Resume workout' : 'Start workout'}
+        <button className="btn btn-primary btn-huge pixel-corners" onClick={active ? () => go({ name: 'session' }) : begin}>
+          {active ? 'Resume quest' : 'Begin quest'}
         </button>
         <div className="row">
-          <button className="btn btn-secondary grow" onClick={() => go({ name: 'history' })}>
-            History
+          <button className="btn grow pixel-corners" onClick={() => go({ name: 'history' })}>
+            Chronicle
           </button>
-          <button className="btn btn-secondary grow" onClick={() => go({ name: 'settings' })}>
+          <button className="btn grow pixel-corners" onClick={() => go({ name: 'settings' })}>
             Settings
           </button>
         </div>
-        <p className={`small center-text storage-line storage-${storage.state}`}>{storage.label}</p>
+        <p className={`center-text storage-line storage-${storage.state}`}>{storage.label}</p>
       </div>
     </div>
   );

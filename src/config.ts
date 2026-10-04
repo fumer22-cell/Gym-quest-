@@ -37,6 +37,11 @@ export const config = {
     fatigueCap: 8,
     /** Carryover fatigue decays linearly to 0 over this many hours. */
     carryoverHours: 72,
+    /**
+     * Lockout: a card locks when any of its primary muscles reaches the cap.
+     * Set true to also lock compounds when a secondary muscle is capped.
+     */
+    compoundLocksOnSecondary: false,
   },
 
   // ── Rest (§7) ───────────────────────────────────────────────────
@@ -56,6 +61,8 @@ export const config = {
     baselineSessions: 3,
     critMultiplier: 2,
     secondaryMatchMultiplier: 0.5,
+    /** Damage when there is no history yet to compare against (first time doing an exercise). */
+    calibrationDamage: 100,
   },
 
   // ── Combat (§7) ─────────────────────────────────────────────────

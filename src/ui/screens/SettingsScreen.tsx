@@ -8,6 +8,7 @@ import { useStorageInfo } from '../../db/sync';
 import { isAvailable } from '../../logic/hand';
 import { MUSCLES, type EquipmentId, type Settings } from '../../types';
 import type { Route } from '../App';
+import { MuscleIcon } from '../art/Pixel';
 import { MuscleChips } from '../components/ExerciseCard';
 import { useConfirm } from '../hooks';
 
@@ -65,8 +66,8 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
   return (
     <div className="screen settings">
       <div className="topbar">
-        <button className="btn btn-ghost" onClick={() => go({ name: 'home' })}>← Home</button>
-        <div className="topbar-mid"><div className="clock">Settings</div></div>
+        <button className="btn btn-ghost" onClick={() => go({ name: 'home' })}>← Camp</button>
+        <div className="topbar-mid"><div className="clock outlined">Settings</div></div>
         <span style={{ width: 64 }} />
       </div>
 
@@ -74,7 +75,7 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
         <h3 className="section-title">Units</h3>
         <div className="segmented">
           {(['lb', 'kg'] as const).map((u) => (
-            <button key={u} className={settings.unit === u ? 'on' : ''} onClick={() => updateSettings({ unit: u })}>
+            <button key={u} className={`btn pixel-corners ${settings.unit === u ? 'on' : ''}`} onClick={() => updateSettings({ unit: u })}>
               {u}
             </button>
           ))}
@@ -83,8 +84,8 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
 
       <section>
         <h3 className="section-title">Feedback</h3>
-        <button className={`toggle ${settings.haptics ? 'toggle-on' : ''}`} onClick={() => updateSettings({ haptics: !settings.haptics })}>
-          {settings.haptics ? '✓ Vibration on' : 'Vibration off'}
+        <button className={`toggle pixel-corners ${settings.haptics ? 'toggle-on' : ''}`} onClick={() => updateSettings({ haptics: !settings.haptics })} aria-pressed={settings.haptics}>
+          Vibration
         </button>
       </section>
 
@@ -97,11 +98,14 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
             const ex = getExercise(id);
             const ok = isAvailable(ex, settings.equipment);
             return (
-              <li key={id} className="deck-item">
+              <li key={id} className="deck-item panel pixel-corners">
                 <div>
+                  <MuscleIcon muscle={ex.primaryMuscles[0]} size={32} />
+                  <div>
                   <div className="log-name">{ex.name}</div>
                   <MuscleChips id={id} />
-                  {!ok && <div className="small warn">Missing equipment — a similar card is dealt instead</div>}
+                  {!ok && <div className="small warn">Missing equipment. A similar card is dealt instead.</div>}
+                  </div>
                 </div>
                 <button
                   className="btn btn-ghost"
@@ -116,10 +120,10 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
           })}
         </ul>
         {!adding && settings.deck.length < config.deck.maxSize && (
-          <button className="btn btn-secondary" onClick={() => setAdding(true)}>+ Add a favorite</button>
+          <button className="btn pixel-corners" onClick={() => setAdding(true)}>+ Add a favorite</button>
         )}
         {adding && (
-          <div className="picker">
+          <div className="picker panel pixel-corners">
             {MUSCLES.map((m) => {
               const options = EXERCISES.filter(
                 (e) => e.primaryMuscles[0] === m && !settings.deck.includes(e.id) && isAvailable(e, settings.equipment),
@@ -127,9 +131,9 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
               if (options.length === 0) return null;
               return (
                 <div key={m}>
-                  <div className="picker-head" style={{ color: MUSCLE_INFO[m].color }}>{MUSCLE_INFO[m].label}</div>
+                  <div className="picker-head" style={{ color: MUSCLE_INFO[m].color }}><MuscleIcon muscle={m} size={24} />{MUSCLE_INFO[m].label}</div>
                   {options.map((e) => (
-                    <button key={e.id} className="picker-item" onClick={() => addCard(e.id)}>{e.name}</button>
+                    <button key={e.id} className="picker-item pixel-corners" onClick={() => addCard(e.id)}>{e.name}</button>
                   ))}
                 </div>
               );
@@ -145,11 +149,10 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
           {EQUIPMENT.map((e) => (
             <button
               key={e.id}
-              className={`toggle ${settings.equipment.includes(e.id) ? 'toggle-on' : ''}`}
+              className={`toggle pixel-corners ${settings.equipment.includes(e.id) ? 'toggle-on' : ''}`}
               onClick={() => toggleEquipment(e.id)}
               aria-pressed={settings.equipment.includes(e.id)}
             >
-              {settings.equipment.includes(e.id) ? '✓ ' : ''}
               {e.label}
             </button>
           ))}
@@ -160,8 +163,8 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
         <h3 className="section-title">Your data</h3>
         <p className="small muted storage-label">{storage.label}</p>
         <div className="row">
-          <button className="btn btn-secondary grow" onClick={doExport}>Export backup</button>
-          <button className="btn btn-secondary grow" onClick={() => fileRef.current?.click()}>Import backup</button>
+          <button className="btn grow pixel-corners" onClick={doExport}>Export backup</button>
+          <button className="btn grow pixel-corners" onClick={() => fileRef.current?.click()}>Import backup</button>
         </div>
         <input
           ref={fileRef}

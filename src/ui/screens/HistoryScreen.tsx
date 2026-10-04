@@ -14,11 +14,11 @@ export function HistoryScreen({ settings, go }: { settings: Settings; go: (r: Ro
   return (
     <div className="screen">
       <div className="topbar">
-        <button className="btn btn-ghost" onClick={() => go({ name: 'home' })}>← Home</button>
-        <div className="topbar-mid"><div className="clock">History</div></div>
+        <button className="btn btn-ghost" onClick={() => go({ name: 'home' })}>← Camp</button>
+        <div className="topbar-mid"><div className="clock outlined">Chronicle</div></div>
         <span style={{ width: 64 }} />
       </div>
-      {sessions?.length === 0 && <p className="muted center-text">No workouts yet.</p>}
+      {sessions?.length === 0 && <p className="muted center-text">No quests yet. Your finished workouts appear here.</p>}
       <ul className="history-list">
         {sessions?.map((s) => (
           <HistoryItem key={s.id} session={s} settings={settings} open={open === s.id} toggle={() => setOpen(open === s.id ? null : s.id!)} />
@@ -35,13 +35,15 @@ function HistoryItem({ session, settings, open, toggle }: { session: Session; se
   const d = new Date(session.startedAt);
   const duration = session.endedAt ? formatClock((session.endedAt - session.startedAt) / 1000) : 'in progress';
   return (
-    <li className="history-item">
+    <li className="history-item panel pixel-corners">
       <button className="history-head" onClick={toggle}>
         <span>
           <strong>{d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</strong>{' '}
           <span className="muted small">{d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>
         </span>
-        <span className="muted small">{working} sets · {duration}</span>
+        <span className="muted small">
+          {working} sets · {sets?.reduce((sum, s) => sum + (s.damage ?? 0), 0) ?? 0} dmg · {duration}
+        </span>
       </button>
       {open && sets && (
         <>

@@ -2,10 +2,10 @@
 
 A roguelike deck-builder that's actually your workout tracker. Mobile-first, offline PWA (React + TypeScript + Vite, IndexedDB via Dexie). No accounts, no backend: all data stays on your device.
 
-## Status: Milestone 1 of 7
+## Status: Milestone 2 of 7
 
 - [x] Project setup, exercise database (42 exercises), offline storage, fast set logging (works as a plain tracker)
-- [ ] Epley estimates, baselines, damage math, fatigue meters + lockout
+- [x] Epley estimates, baselines, damage math, fatigue meters + lockout, pixel-art fantasy UI
 - [ ] A single fight
 - [ ] Full run (map, campfire/treasure, drops, summary)
 - [ ] Bosses + readiness formula

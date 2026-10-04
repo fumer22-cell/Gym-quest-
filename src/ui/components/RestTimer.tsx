@@ -35,7 +35,7 @@ export function RestTimer({ session, settings }: { session: Session; settings: S
   const pct = Math.min(100, (elapsed / end) * 100);
 
   return (
-    <div className={`rest rest-${phase}`}>
+    <div className={`rest panel pixel-corners rest-${phase}`}>
       <div className="rest-content">
         <div>
           <div className="rest-label">{LABEL[phase]}</div>

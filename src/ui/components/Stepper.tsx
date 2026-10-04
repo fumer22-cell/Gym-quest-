@@ -36,10 +36,10 @@ export function Stepper({
     <div className="stepper">
       <div className="stepper-label">{label}</div>
       <div className="stepper-row">
-        <button className="step-btn" onClick={() => onChange(round(value - step))} aria-label={`Decrease ${label}`}>
+        <button className="btn step-btn pixel-corners" onClick={() => onChange(round(value - step))} aria-label={`Decrease ${label}`}>
           −
         </button>
-        <label className="stepper-value">
+        <label className="stepper-value pixel-corners">
           <input
             inputMode="decimal"
             value={text}
@@ -51,7 +51,7 @@ export function Stepper({
           />
           {suffix && <span className="stepper-suffix">{suffix}</span>}
         </label>
-        <button className="step-btn" onClick={() => onChange(round(value + step))} aria-label={`Increase ${label}`}>
+        <button className="btn step-btn pixel-corners" onClick={() => onChange(round(value + step))} aria-label={`Increase ${label}`}>
           +
         </button>
       </div>
