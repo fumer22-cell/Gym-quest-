@@ -33,6 +33,12 @@ Open http://localhost:5173 on your computer.
 
 Data is saved per address in each browser, so the phone keeps its own log. If your computer's IP changes, the phone will see an empty app at the new address. Use **Settings → Export backup** to move data. Installing to the home screen and real offline use (service worker over HTTPS) arrive in milestone 7.
 
+## Run it inside Claude
+
+Gym Quest is published as a Claude artifact: https://claude.ai/artifact/WEaaE5UmEGPRc1kuNjGjkC
+
+That version saves your workouts to your Claude account (private to you), so it works on any device where you are signed in to Claude. Rebuild it with `npm run build:artifact`, which writes the single-file page to `artifact/gym-quest.html`.
+
 ## Scripts
 
 | Command | What it does |
@@ -41,6 +47,7 @@ Data is saved per address in each browser, so the phone keeps its own log. If yo
 | `npm test` | Unit tests (Vitest) |
 | `npm run build` | Typecheck + production build to `dist/` |
 | `npm run preview` | Serve the production build on your LAN (port 4173) |
+| `npm run build:artifact` | Build the single-file Claude artifact page |
 
 ## Where things live
 

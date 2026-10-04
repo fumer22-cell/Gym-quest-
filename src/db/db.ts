@@ -1,4 +1,4 @@
-import Dexie, { type EntityTable } from 'dexie';
+import Dexie, { type DexieOptions, type EntityTable } from 'dexie';
 import type { LoggedSet, Session, Settings } from '../types';
 
 export class GymQuestDB extends Dexie {
@@ -6,8 +6,8 @@ export class GymQuestDB extends Dexie {
   sets!: EntityTable<LoggedSet, 'id'>;
   settings!: EntityTable<Settings, 'key'>;
 
-  constructor(name = 'gym-quest') {
-    super(name);
+  constructor(name = 'gym-quest', options?: DexieOptions) {
+    super(name, options);
     this.version(1).stores({
       sessions: '++id, startedAt, endedAt',
       sets: '++id, sessionId, exerciseId, loggedAt, [exerciseId+loggedAt]',

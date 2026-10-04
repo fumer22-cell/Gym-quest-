@@ -4,6 +4,7 @@ import { EQUIPMENT } from '../../data/equipment';
 import { EXERCISES, getExercise } from '../../data/exercises';
 import { MUSCLE_INFO } from '../../data/muscles';
 import { exportData, importData, resetAll, updateSettings, type Backup } from '../../db/repo';
+import { useStorageInfo } from '../../db/sync';
 import { isAvailable } from '../../logic/hand';
 import { MUSCLES, type EquipmentId, type Settings } from '../../types';
 import type { Route } from '../App';
@@ -15,6 +16,7 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
   const [resetArmed, confirmReset] = useConfirm();
   const [msg, setMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const storage = useStorageInfo();
 
   const toggleEquipment = (id: EquipmentId) => {
     const has = settings.equipment.includes(id);
@@ -34,10 +36,19 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
 
   const doExport = async () => {
     const data = await exportData();
+    const filename = `gym-quest-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    if (storage.saveFile) {
+      try {
+        await storage.saveFile(filename, JSON.stringify(data));
+      } catch {
+        setMsg('Export cancelled.');
+      }
+      return;
+    }
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `gym-quest-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -146,7 +157,8 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
       </section>
 
       <section>
-        <h3 className="section-title">Your data (stored only on this device)</h3>
+        <h3 className="section-title">Your data</h3>
+        <p className="small muted storage-label">{storage.label}</p>
         <div className="row">
           <button className="btn btn-secondary grow" onClick={doExport}>Export backup</button>
           <button className="btn btn-secondary grow" onClick={() => fileRef.current?.click()}>Import backup</button>

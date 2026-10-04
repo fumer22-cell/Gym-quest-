@@ -263,3 +263,7 @@ h1, h2, h3 { margin: 0; }
   border-radius: var(--radius);
   font-weight: 600;
 }
+
+.storage-label { margin: 0; }
+.storage-line { margin: 4px 0 0; color: var(--muted); }
+.storage-error { color: var(--warn); }

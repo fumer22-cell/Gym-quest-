@@ -6,6 +6,7 @@ import { prefillFor, type Prefill } from '../logic/prefill';
 import { setsByMuscle } from '../logic/volume';
 import type { LoggedSet, Session, Settings, Unit } from '../types';
 import { db } from './db';
+import { notify } from './sync';
 
 export const DEFAULT_SETTINGS: Settings = {
   key: 'main',
@@ -23,6 +24,7 @@ export async function getSettings(): Promise<Settings> {
 export async function updateSettings(patch: Partial<Omit<Settings, 'key'>>): Promise<void> {
   const current = await getSettings();
   await db.settings.put({ ...current, ...patch, key: 'main' });
+  notify.settings();
 }
 
 export async function getActiveSession(): Promise<Session | undefined> {
@@ -35,9 +37,12 @@ export async function startSession(rng: Rng = Math.random, now = Date.now()): Pr
   if (existing) return existing;
   const settings = await getSettings();
   const hand = startHand(settings.deck, settings.equipment, rng);
-  const session: Session = { startedAt: now, ...hand };
-  const id = await db.sessions.add(session);
-  return { ...session, id };
+  // Time-based ids stay unique across devices that sync to the same account.
+  const last = await db.sessions.orderBy(':id').last();
+  const session: Session = { id: Math.max(now, (last?.id ?? 0) + 1), startedAt: now, ...hand };
+  await db.sessions.add(session);
+  notify.session(session.id!);
+  return session;
 }
 
 export async function endSession(sessionId: number, now = Date.now()): Promise<void> {
@@ -47,6 +52,7 @@ export async function endSession(sessionId: number, now = Date.now()): Promise<v
     restStartedAt: undefined,
     restExerciseId: undefined,
   });
+  notify.session(sessionId);
 }
 
 export async function deleteSession(sessionId: number): Promise<void> {
@@ -54,6 +60,7 @@ export async function deleteSession(sessionId: number): Promise<void> {
     await db.sets.where('sessionId').equals(sessionId).delete();
     await db.sessions.delete(sessionId);
   });
+  notify.session(sessionId);
 }
 
 export async function setsForSession(sessionId: number): Promise<LoggedSet[]> {
@@ -87,19 +94,24 @@ export async function logSet(
     });
     return newId;
   });
+  notify.session(input.sessionId);
   return { ...set, id };
 }
 
 export async function deleteSet(setId: number): Promise<void> {
+  const set = await db.sets.get(setId);
   await db.sets.delete(setId);
+  if (set) notify.session(set.sessionId);
 }
 
 export async function setActiveExercise(sessionId: number, exerciseId: string | undefined): Promise<void> {
   await db.sessions.update(sessionId, { activeExerciseId: exerciseId });
+  notify.session(sessionId);
 }
 
 export async function stopRest(sessionId: number): Promise<void> {
   await db.sessions.update(sessionId, { restStartedAt: undefined, restExerciseId: undefined });
+  notify.session(sessionId);
 }
 
 function handOf(s: Session): HandState {
@@ -116,6 +128,7 @@ export async function finishExercise(sessionId: number, exerciseId: string, rng:
   if (!session) return;
   const next = finishCard(handOf(session), exerciseId, settings.equipment, setsByMuscle(sets), rng);
   await db.sessions.update(sessionId, { ...next, activeExerciseId: undefined });
+  notify.session(sessionId);
 }
 
 /** "Machine taken": returns false when there is no similar exercise left to offer. */
@@ -125,6 +138,7 @@ export async function swapExercise(sessionId: number, exerciseId: string, rng: R
   const next = swapCard(handOf(session), exerciseId, settings.equipment, rng);
   if (!next) return false;
   await db.sessions.update(sessionId, { ...next });
+  notify.session(sessionId);
   return true;
 }
 
@@ -154,10 +168,12 @@ export async function importData(backup: Backup): Promise<void> {
     await db.sets.bulkAdd(backup.sets);
     await db.settings.bulkAdd(backup.settings);
   });
+  notify.all();
 }
 
 export async function resetAll(): Promise<void> {
   await db.transaction('rw', db.sessions, db.sets, db.settings, async () => {
     await Promise.all([db.sessions.clear(), db.sets.clear(), db.settings.clear()]);
   });
+  notify.all();
 }

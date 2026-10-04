@@ -1,0 +1,8 @@
+/* The artifact viewer already pads the page by the phone's safe-area insets. */
+.screen {
+  padding-top: 12px;
+  padding-bottom: 24px;
+}
+.logger {
+  min-height: calc(100% - 12px);
+}
