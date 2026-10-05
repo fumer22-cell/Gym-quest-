@@ -3,10 +3,10 @@ import { useEffect, useState } from 'react';
 import { config } from '../../config';
 import { getExercise } from '../../data/exercises';
 import { MUSCLE_INFO } from '../../data/muscles';
+import { setTarget } from '../../db/quest';
 import { allHistoryFor, deleteSet, finishExercise, getPrefill, logSet, setActiveExercise } from '../../db/repo';
 import { lockedBy, type Meters } from '../../logic/fatigue';
-import { canUseModifier, unlockedModifiers } from '../../logic/modifiers';
-import { compoundFor } from '../../logic/readiness';
+import { canUseModifier, MODIFIER_INFO, unlockedModifiers } from '../../logic/modifiers';
 import { pickTarget, setDamage } from '../../logic/run/combat';
 import { evaluateSet } from '../../logic/strength';
 import { fromKg, toKg } from '../../logic/units';
@@ -15,19 +15,21 @@ import { MuscleIcon, Pixel } from '../art/Pixel';
 import { CROWN, LOCK } from '../art/sprites';
 import { buzz } from '../feedback';
 import { useConfirm } from '../hooks';
+import { Screen, TopBar } from '../layout/Screen';
+import { Stage } from '../scene/Stage';
+import { RunClock } from '../screens/run/RunChrome';
 import { sfx } from '../sound';
-import { EnemyCard, Hud } from './Combat';
-import { DamagePopup, type Hit } from './DamagePopup';
+import { Hud } from './Combat';
 import { MuscleChips, muscleStyle } from './ExerciseCard';
-import { MeterRow } from './Meters';
 import { ModifierPicker } from './ModifierPicker';
-import { RestPanel } from './RestPanel';
+import { RestCards, RestPill } from './RestPanel';
 import { Stepper } from './Stepper';
 
-function describeSet(s: LoggedSet, settings: Settings, bodyweight: boolean) {
-  return bodyweight ? `${s.reps} reps` : `${fromKg(s.weightKg, settings.unit)} × ${s.reps}`;
+function describeSet(s: LoggedSet, unit: Settings['unit'], bodyweight: boolean) {
+  return bodyweight ? `${s.reps}` : `${fromKg(s.weightKg, unit)}×${s.reps}`;
 }
 
+/** Logging a set inside a fight: the "combat stance". Fits one phone screen. */
 export function Logger({
   session,
   sessionSets,
@@ -53,7 +55,6 @@ export function Logger({
   const [warmup, setWarmup] = useState(false);
   const [modifier, setModifier] = useState<ModifierId | undefined>();
   const [busy, setBusy] = useState(false);
-  const [hit, setHit] = useState<Hit | null>(null);
   const [undoArmed, confirmUndo] = useConfirm();
 
   useEffect(() => {
@@ -70,7 +71,6 @@ export function Logger({
   }, [exerciseId, unit]);
 
   const history = useLiveQuery(() => allHistoryFor(exerciseId), [exerciseId]);
-
   const lastTime = (() => {
     const prior = (history ?? []).filter((s) => s.sessionId !== session.id && !s.isWarmup);
     if (prior.length === 0) return [];
@@ -83,12 +83,12 @@ export function Logger({
   const workingCount = mine.filter((s) => !s.isWarmup).length;
   const progress = settings.modifierProgress ?? 0;
   const unlocked = unlockedModifiers(progress);
-  const usable = fight && run && run.mode === 'run' ? modifier && canUseModifier(ex, modifier, unlocked) && run.charges > 0 ? modifier : undefined : undefined;
+  const modsAvailable = !!fight && run?.mode === 'run';
+  const usable = modsAvailable && modifier && canUseModifier(ex, modifier, unlocked) && run!.charges > 0 ? modifier : undefined;
   const supersetSecond = !!fight?.superset && fight.superset.firstExerciseId !== exerciseId;
   const target = fight ? pickTarget(exerciseId, fight, supersetSecond ? fight.superset?.firstTargetId : undefined) : undefined;
-  const weightKg = weight === null ? 0 : ex.isBodyweight ? 0 : toKg(weight, unit);
+  const weightKg = weight === null || ex.isBodyweight ? 0 : toKg(weight, unit);
 
-  // Live forecast for the numbers on the steppers, against the enemy this set will hit.
   const evaluation = history && weight !== null ? evaluateSet(ex, { weightKg, reps, isWarmup: warmup }, history, session.id) : null;
   const forecast =
     evaluation && target && !warmup
@@ -120,14 +120,8 @@ export function Logger({
         Date.now(),
         { plannedReps },
       );
-      if (!saved.isWarmup) {
-        setHit({ key: Date.now(), damage: saved.damage ?? 0, isPR: !!saved.isPR, junk: !!lock });
-        buzz(settings, saved.isPR ? [60, 40, 60, 40, 160] : 50);
-        if (!fight) sfx(settings, saved.isPR ? 'crit' : 'hit');
-      } else {
-        buzz(settings, 30);
-        if (fight) sfx(settings, 'heal');
-      }
+      buzz(settings, saved.isWarmup ? 30 : saved.isPR ? [60, 40, 60, 40, 160] : 50);
+      if (saved.isWarmup) sfx(settings, 'heal');
       if (usable === 'superset' && !saved.isWarmup) await setActiveExercise(session.id!, undefined);
       setModifier(undefined);
     } finally {
@@ -137,148 +131,129 @@ export function Logger({
 
   const last = mine[mine.length - 1];
   const main = ex.primaryMuscles[0];
+  let info: React.ReactNode;
+  if (lock) {
+    info = (
+      <span className="lg-warn">
+        <Pixel sprite={LOCK} size={18} /> {MUSCLE_INFO[lock].short} is capped: junk volume, no damage.
+      </span>
+    );
+  } else if (usable) {
+    info = (
+      <span>
+        <b>{MODIFIER_INFO[usable].name}:</b> {MODIFIER_INFO[usable].effect} <span className="muted">{MODIFIER_INFO[usable].cost}</span>
+      </span>
+    );
+  } else if (wp) {
+    info = (
+      <span className="lg-weak">
+        Weak point {fromKg(wp.targetWeightKg, unit)}×{config.boss.minReps}+ shatters the armor
+      </span>
+    );
+  } else if (warmup) {
+    info = <span className="muted">Warm-up: no fatigue. Heals {config.warmup.heal}, shields {config.warmup.shield}.</span>;
+  } else {
+    info = (
+      <span className="muted">
+        {lastTime.length ? `Last: ${lastTime.map((s) => describeSet(s, unit, ex.isBodyweight)).join(' ')}` : 'First time: deals 100 while we learn you'}
+      </span>
+    );
+  }
 
   return (
-    <div className="logger">
-      <div className="logger-top">
-        <button className="btn btn-ghost" onClick={() => setActiveExercise(session.id!, undefined)}>
-          ← Hand
-        </button>
-        <span className="logger-type">
-          {ex.isCompound ? 'Compound' : 'Isolation'}
-          {mastery > 0 && ` · Lv ${mastery}`}
-        </span>
-      </div>
-
-      {run && fight && <Hud run={run} event={fight.lastEvent} />}
-      {target && (
-        <div className="logger-target">
-          <EnemyCard enemy={target} unit={unit} selected={false} reveal={(fight!.revealUntilTurn ?? 0) > fight!.turn} event={fight!.lastEvent} compact />
-          {supersetSecond && <span className="superset-tag">Superset: hits the other enemy</span>}
-        </div>
+    <Screen scene={target?.isBoss ? 'boss' : run?.mode === 'training' ? 'calm' : 'dungeon'} className="logger-screen">
+      <TopBar
+        left={
+          <button className="icon-btn" onClick={() => setActiveExercise(session.id!, undefined)} aria-label="Back to hand">
+            ←
+          </button>
+        }
+        center={run && <Hud run={run} event={fight?.lastEvent} />}
+        right={<RunClock session={session} sets={sessionSets} />}
+      />
+      {fight ? (
+        <Stage
+          compact
+          enemies={fight.enemies}
+          event={fight.lastEvent}
+          targetId={target?.id}
+          reveal={(fight.revealUntilTurn ?? 0) > fight.turn}
+          unit={unit}
+          onSelect={(id) => setTarget(session.id!, id)}
+          top={
+            <>
+              <RestPill session={session} settings={settings} />
+              <RestCards session={session} settings={settings} />
+            </>
+          }
+        />
+      ) : (
+        <div className="stage stage-compact" />
       )}
 
-      <div className="logger-head">
-        <div
-          key={`art-${hit?.key ?? 0}`}
-          className={`logger-art pixel-corners ${ex.isCompound ? '' : 'iso'} ${hit ? (hit.isPR ? 'shake flash' : 'flash') : ''}`}
-          style={muscleStyle(main)}
-        >
-          <MuscleIcon muscle={main} size={64} />
+      <div className="lg-head">
+        <div className={`lg-art ${ex.isCompound ? '' : 'iso'}`} style={muscleStyle(main)}>
+          <MuscleIcon muscle={main} size={40} />
         </div>
-        <div className="logger-title">
-          <h2 className="logger-name">{ex.name}</h2>
+        <div className="lg-title">
+          <h2>
+            {ex.name}
+            {mastery > 0 && <span className="lg-lv"> Lv {mastery}</span>}
+          </h2>
           <MuscleChips id={exerciseId} showSecondary />
         </div>
-        {hit && <DamagePopup key={`hit-${hit.key}`} hit={hit} />}
-      </div>
-
-      {wp && (
-        <p className="weakpoint">
-          Weak point: {compoundFor(wp.lift).name} {fromKg(wp.targetWeightKg, unit)} × {wp.targetReps}
-          <small>Reach {fromKg(wp.targetWeightKg, unit)} × {config.boss.minReps} or better to shatter the armor (×{config.boss.armorBreakMultiplier}).</small>
-        </p>
-      )}
-
-      {lastTime.length > 0 && (
-        <p className="last-time">Last time: {lastTime.map((s) => describeSet(s, settings, ex.isBodyweight)).join(', ')}</p>
-      )}
-
-      {meters && (
-        <div className="panel pixel-corners">
-          {ex.primaryMuscles.map((m) => (
-            <MeterRow key={m} muscle={m} meter={meters[m]} />
-          ))}
-        </div>
-      )}
-
-      {lock && (
-        <div className="lock-warning panel pixel-corners">
-          <Pixel sprite={LOCK} size={32} />
-          <span>{MUSCLE_INFO[lock].label} is at its fatigue cap. More sets are junk volume and deal no damage.</span>
-        </div>
-      )}
-
-      <RestPanel session={session} settings={settings} />
-
-      {mine.length > 0 && (
-        <div className="logger-sets">
-          {mine.map((s, i) => (
-            <span key={s.id} className={`set-pill pixel-corners ${s.isWarmup ? 'set-warmup' : ''} ${s.isPR ? 'pr' : ''}`}>
-              {s.isWarmup ? 'W' : mine.slice(0, i + 1).filter((x) => !x.isWarmup).length} · {describeSet(s, settings, ex.isBodyweight)}
-              {!s.isWarmup && <span className="dmg">{s.damage ?? 0}</span>}
-            </span>
-          ))}
+        <div className="lg-sets">
+          <span>
+            {workingCount} set{workingCount === 1 ? '' : 's'}
+            {supersetSecond && <em> · superset</em>}
+          </span>
           {last && (
-            <button className={`btn btn-ghost small ${undoArmed ? 'danger' : ''}`} onClick={() => confirmUndo(() => deleteSet(last.id!))}>
-              {undoArmed ? 'Tap to undo' : 'Undo last'}
+            <button className={`link ${undoArmed ? 'danger' : ''}`} onClick={() => confirmUndo(() => deleteSet(last.id!))}>
+              {undoArmed ? 'Tap: undo' : 'Undo'}
             </button>
           )}
         </div>
+      </div>
+
+      <div className="lg-info">
+        {info}
+        {evaluation?.e1rm != null && <span className="lg-e1rm">1RM {fromKg(evaluation.e1rm, unit)}</span>}
+        {evaluation?.isPR && !warmup && (
+          <span className="pr-badge">
+            <Pixel sprite={CROWN} size={16} /> PR
+          </span>
+        )}
+      </div>
+
+      {modsAvailable && !warmup && (
+        <ModifierPicker ex={ex} unlocked={unlocked} progress={progress} charges={run!.charges} value={modifier} onChange={setModifier} />
       )}
 
-      <div className="logger-controls">
-        {evaluation && (
-          <div className="forecast panel pixel-corners">
-            {evaluation.e1rm !== null && (
-              <span className="forecast-item">
-                <span className="forecast-label">Est. 1RM</span>
-                <span className="forecast-value">{fromKg(evaluation.e1rm, unit)}</span>
-              </span>
-            )}
-            {fight && (
-              <span className="forecast-item forecast-dmg">
-                <span className="forecast-label">Damage</span>
-                <span className="forecast-value">{warmup ? '—' : forecast ? forecast.damage : 0}</span>
-              </span>
-            )}
-            {evaluation.isPR && !warmup && (
-              <span className="pr-badge pixel-corners">
-                <Pixel sprite={CROWN} size={22} /> PR
-              </span>
-            )}
-            {forecast?.armorBreak && <span className="pr-badge pixel-corners">SHATTER</span>}
-            <span className="forecast-note">
-              {warmup
-                ? fight
-                  ? `Warm-ups add no fatigue. They heal ${config.warmup.heal} and shield ${config.warmup.shield} (${config.warmup.perFight} per fight).`
-                  : 'Warm-ups add no fatigue.'
-                : !fight
-                  ? 'Sets only deal damage in fights.'
-                  : !target
-                    ? 'No enemy here is weak to this card.'
-                    : evaluation.baseline
-                      ? '100 = a typical set from your last 3 workouts.'
-                      : 'First time logging this: sets deal 100 while we learn your baseline.'}
-            </span>
-          </div>
-        )}
-
-        {fight && run && run.mode === 'run' && !warmup && (
-          <ModifierPicker ex={ex} unlocked={unlocked} progress={progress} charges={run.charges} value={modifier} onChange={setModifier} />
-        )}
-
+      <div className="lg-steppers">
         {!ex.isBodyweight && weight !== null && (
-          <Stepper
-            label={ex.perHand ? `Weight (${unit}, per hand)` : `Weight (${unit})`}
-            value={weight}
-            step={config.logging.weightStep[unit]}
-            onChange={setWeight}
-          />
+          <Stepper label={ex.perHand ? `${unit} / hand` : unit} value={weight} step={config.logging.weightStep[unit]} onChange={setWeight} />
         )}
-        <Stepper label="Reps" value={reps} step={config.logging.repStep} min={1} decimals={0} onChange={setReps} />
+        <Stepper label="reps" value={reps} step={config.logging.repStep} min={1} decimals={0} onChange={setReps} />
+      </div>
 
-        <button className={`toggle pixel-corners ${warmup ? 'toggle-on' : ''}`} onClick={() => setWarmup((w) => !w)} aria-pressed={warmup}>
-          Warm-up set
+      <div className="lg-actions">
+        <button className={`warmup-toggle ${warmup ? 'on' : ''}`} onClick={() => setWarmup((w) => !w)} aria-pressed={warmup}>
+          Warm
+          <br />
+          up
         </button>
-
-        <button className="btn btn-primary btn-huge pixel-corners" onClick={log} disabled={busy || weight === null}>
-          {warmup ? 'Log warm-up' : `Strike! · Set ${workingCount + 1}`}
-        </button>
-        <button className="btn pixel-corners" onClick={() => finishExercise(session.id!, exerciseId)} disabled={workingCount === 0 && !lock}>
-          {lock ? 'Discard card' : 'Finish exercise · draw a card'}
+        <button className="btn btn-primary btn-strike" onClick={log} disabled={busy || weight === null}>
+          <span>{warmup ? 'Log warm-up' : 'Strike!'}</span>
+          {!warmup && fight && (
+            <small>
+              {forecast ? (forecast.armorBreak ? `SHATTER ${forecast.damage}` : `${forecast.damage} dmg`) : target ? '0 dmg' : 'no target'}
+            </small>
+          )}
         </button>
       </div>
-    </div>
+      <button className="lg-finish link" onClick={() => finishExercise(session.id!, exerciseId)} disabled={workingCount === 0 && !lock}>
+        {lock ? 'Discard this card' : 'Finish exercise · draw a new card'}
+      </button>
+    </Screen>
   );
 }

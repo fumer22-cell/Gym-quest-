@@ -12,8 +12,8 @@ export const MOD_ICON: Record<ModifierId, Sprite> = {
 };
 
 /**
- * Modifiers this card may use. Blocked combinations (safety whitelist) are never shown;
- * locked ones show when they unlock.
+ * Modifiers this card may use, in one compact row. Blocked combinations (safety whitelist)
+ * are never shown; locked ones show how far they are from unlocking.
  */
 export function ModifierPicker({
   ex,
@@ -32,39 +32,28 @@ export function ModifierPicker({
 }) {
   const allowed = MODIFIER_ORDER.filter((m) => ex.allowedModifiers.includes(m));
   if (allowed.length === 0) return null;
-  const selected = value ? MODIFIER_INFO[value] : undefined;
   return (
-    <div className="mods panel pixel-corners">
-      <div className="mods-head">
-        <span className="forecast-label">Modifier</span>
-        <span className="mods-charges">
-          <Pixel sprite={BOLT} size={18} /> {charges} charge{charges === 1 ? '' : 's'}
-        </span>
-      </div>
-      <div className="mods-row">
-        {allowed.map((m) => {
-          const open = unlocked.includes(m);
-          return (
-            <button
-              key={m}
-              className={`mod pixel-corners ${value === m ? 'mod-on' : ''}`}
-              disabled={!open || (charges <= 0 && value !== m)}
-              onClick={() => onChange(value === m ? undefined : m)}
-              aria-pressed={value === m}
-              title={open ? `${MODIFIER_INFO[m].effect} ${MODIFIER_INFO[m].cost}` : `Unlocks at ${config.modifiers.unlocks[m]} progress`}
-            >
-              <Pixel sprite={MOD_ICON[m]} size={22} />
-              <span>{MODIFIER_INFO[m].name}</span>
-              {!open && <small>{config.modifiers.unlocks[m] - progress} to unlock</small>}
-            </button>
-          );
-        })}
-      </div>
-      {selected && (
-        <p className="mods-desc">
-          {selected.effect} <span className="muted">{selected.cost}</span>
-        </p>
-      )}
+    <div className="mods">
+      <span className="mods-charges" title="Modifier charges">
+        <Pixel sprite={BOLT} size={16} />
+        {charges}
+      </span>
+      {allowed.map((m) => {
+        const open = unlocked.includes(m);
+        return (
+          <button
+            key={m}
+            className={`mod ${value === m ? 'mod-on' : ''}`}
+            disabled={!open || (charges <= 0 && value !== m)}
+            onClick={() => onChange(value === m ? undefined : m)}
+            aria-pressed={value === m}
+            title={open ? `${MODIFIER_INFO[m].effect} ${MODIFIER_INFO[m].cost}` : `Unlocks at ${config.modifiers.unlocks[m]} progress`}
+          >
+            <Pixel sprite={MOD_ICON[m]} size={18} />
+            <span>{open ? MODIFIER_INFO[m].name : `${config.modifiers.unlocks[m] - progress} more`}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

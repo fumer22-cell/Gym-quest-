@@ -574,3 +574,73 @@ export const MOD_AMRAP = mirrored([
   '........',
   '........',
 ]);
+
+// ── Hero & effects ─────────────────────────────────────────────────────────
+
+/** The player: a knight facing right, sword raised. */
+export const HERO = sprite([
+  '....................',
+  '.......rr...........',
+  '......rrrr..........',
+  '.....kkkkkk.........',
+  '....kswwwssk........',
+  '....kssssssk......kk',
+  '....ksskkkkk.....kwk',
+  '....ksssssak....kwk.',
+  '.....kddddk....kwk..',
+  '...kkkkkkkkkk.kwk...',
+  '..krrksswssskkwk....',
+  '..krrkssssskyyk.....',
+  '..krrkbbbbbkkk......',
+  '..krrkbbybbk........',
+  '..krrkbbbbbk........',
+  '..krrkddddddk.......',
+  '...kkksssssk........',
+  '.....ksk.ksk........',
+  '.....ksk.ksk........',
+  '.....ksk.ksk........',
+  '....kddk.kddk.......',
+  '....kkkk.kkkk.......',
+]);
+
+/** Sword slash arc, drawn over the target. */
+export const SLASH = sprite([
+  '.........wwa....',
+  '...........wwa..',
+  '............wwa.',
+  '.............wwa',
+  '.............wwa',
+  '..............ww',
+  '..............ww',
+  '..............ww',
+  '..............ww',
+  '..............ww',
+  '.............wwa',
+  '.............wwa',
+  '............wwa.',
+  '...........wwa..',
+  '.........wwa....',
+  '................',
+]);
+
+const TORCH_BASE = ['..kddk..', '...dd...', '...dd...', '...dd...', '..kddk..', '.kdkkdk.', '..k..k..'];
+export const TORCH: Sprite[] = [
+  ['...r....', '..ro.r..', '..oyor..', '.royyo..', '.oywyor.', '.oywwyo.', '..oyyo..'],
+  ['....r...', '.r.or...', '..royo..', '..oyyor.', '.roywyo.', '.oywwyo.', '..oyyo..'],
+  ['..r.....', '..or.r..', '.royo...', '.oyyor..', '.oywyyo.', '.oywwyo.', '..oyyo..'],
+].map((flame) => sprite([...flame, ...TORCH_BASE]));
+
+export const MENU = sprite([
+  '..........',
+  '.kkkkkkkk.',
+  '.kwwwwwwk.',
+  '.kkkkkkkk.',
+  '..........',
+  '.kkkkkkkk.',
+  '.kwwwwwwk.',
+  '.kkkkkkkk.',
+  '..........',
+  '.kkkkkkkk.',
+  '.kwwwwwwk.',
+  '.kkkkkkkk.',
+]);

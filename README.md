@@ -12,6 +12,10 @@ A roguelike deck-builder that's actually your workout tracker. Mobile-first, off
 - [x] 6. Nemesis system, modifiers with safety whitelist, keep-one + deck cap, card mastery
 - [x] 7. Onboarding + Training Grounds, character tracker, sounds/haptics, PWA install + offline
 
+## Look and feel
+
+Every screen fits a phone without scrolling (checked down to 375×667). Fights happen on an animated battle stage: torch-lit dungeon backdrop with drifting fog and particles, a hero who lunges and slashes, enemies that breathe, float, flinch, lunge and dissolve, damage numbers, crit shake and HP bars that drain. Your hand fans out along the bottom: drag a card up to play it, or tap to inspect, swap or discard.
+
 ## How a quest works
 
 1. **Onboarding** picks your equipment and starter deck. Your first quest is the **Training Grounds**: dummies that never hit back, so the game learns your baselines.
@@ -72,3 +76,4 @@ That version saves your workouts to your Claude account (private to you), so it 
 - `src/db/quest.ts`: applies the run rules to stored sessions (fights, rewards, bosses, nemeses)
 - `src/db/`: IndexedDB schema and data access
 - `src/ui/`: React screens and components; `src/ui/art/` holds every pixel sprite as a text grid
+- `src/ui/scene/`: animated backgrounds, particles and the battle stage; `src/ui/hand/`: the draggable card hand

@@ -71,3 +71,30 @@ export function installBackdrop() {
   document.documentElement.style.setProperty('--backdrop', `url(${canvas.toDataURL()})`);
   document.documentElement.style.setProperty('--backdrop-size', `${W * scale}px`);
 }
+
+/** Flagstone floor tile for the battle stage. */
+export function installFloor() {
+  const W = 32;
+  const H = 16;
+  const scale = 4;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const rng = mulberry(11);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const sx = (x + (y >= 8 ? 8 : 0)) % 16;
+      const sy = y % 8;
+      let c = rng() < 0.5 ? '#232034' : '#26233a';
+      if (sx === 0 || sy === 0) c = '#14121e';
+      else if (sy === 1) c = '#2e2a45';
+      else if (rng() < 0.04) c = '#302c48';
+      ctx.fillStyle = c;
+      ctx.fillRect(x * scale, y * scale, scale, scale);
+    }
+  }
+  document.documentElement.style.setProperty('--floor', `url(${canvas.toDataURL()})`);
+  document.documentElement.style.setProperty('--floor-size', `${W * scale}px ${H * scale}px`);
+}

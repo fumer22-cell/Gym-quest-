@@ -6,7 +6,6 @@ export function Stepper({
   value,
   step,
   min = 0,
-  suffix,
   decimals = 1,
   onChange,
 }: {
@@ -14,7 +13,6 @@ export function Stepper({
   value: number;
   step: number;
   min?: number;
-  suffix?: string;
   decimals?: number;
   onChange: (v: number) => void;
 }) {
@@ -34,27 +32,24 @@ export function Stepper({
 
   return (
     <div className="stepper">
-      <div className="stepper-label">{label}</div>
-      <div className="stepper-row">
-        <button className="btn step-btn pixel-corners" onClick={() => onChange(round(value - step))} aria-label={`Decrease ${label}`}>
-          −
-        </button>
-        <label className="stepper-value pixel-corners">
-          <input
-            inputMode="decimal"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-            onFocus={(e) => e.target.select()}
-            aria-label={label}
-          />
-          {suffix && <span className="stepper-suffix">{suffix}</span>}
-        </label>
-        <button className="btn step-btn pixel-corners" onClick={() => onChange(round(value + step))} aria-label={`Increase ${label}`}>
-          +
-        </button>
-      </div>
+      <button className="step-btn" onClick={() => onChange(round(value - step))} aria-label={`Decrease ${label}`}>
+        −
+      </button>
+      <label className="stepper-value">
+        <input
+          inputMode="decimal"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          onFocus={(e) => e.target.select()}
+          aria-label={label}
+        />
+        <span className="stepper-unit">{label}</span>
+      </label>
+      <button className="step-btn" onClick={() => onChange(round(value + step))} aria-label={`Increase ${label}`}>
+        +
+      </button>
     </div>
   );
 }

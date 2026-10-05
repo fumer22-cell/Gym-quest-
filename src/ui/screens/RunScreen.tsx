@@ -1,9 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useRef } from 'react';
-import { checkOverrun, ensureRun } from '../../db/quest';
-import { abandonRun } from '../../db/quest';
-import { allHistoryFor, getMeters, setsForSession } from '../../db/repo';
+import { useEffect, useRef, useState } from 'react';
 import { getExercise } from '../../data/exercises';
+import { checkOverrun, ensureRun } from '../../db/quest';
+import { allHistoryFor, getMeters, setsForSession } from '../../db/repo';
 import { masteryLevel } from '../../logic/mastery';
 import { currentIntent, living, restOverdue } from '../../logic/run/combat';
 import { nodeById } from '../../logic/run/map';
@@ -11,11 +10,13 @@ import type { LoggedSet, Session, Settings } from '../../types';
 import type { Route } from '../App';
 import { Logger } from '../components/Logger';
 import { buzz } from '../feedback';
-import { formatClock, useConfirm, useNow } from '../hooks';
+import { useNow } from '../hooks';
+import { Screen } from '../layout/Screen';
 import { sfx } from '../sound';
 import { FightView } from './run/FightView';
 import { MapView } from './run/MapView';
 import { CampfireView, RewardView } from './run/NodeViews';
+import { RunMenu } from './run/RunChrome';
 import { RunEndView } from './run/RunEndView';
 
 export function RunScreen({ session, settings, go }: { session: Session; settings: Settings; go: (r: Route) => void }) {
@@ -33,7 +34,7 @@ export function RunScreen({ session, settings, go }: { session: Session; setting
     {} as Record<string, number>,
   );
   const now = useNow(1000);
-  const [endArmed, confirmEnd] = useConfirm();
+  const [menu, setMenu] = useState(false);
   const campEnteredAt = useRef(Date.now());
 
   useEffect(() => {
@@ -72,61 +73,53 @@ export function RunScreen({ session, settings, go }: { session: Session; setting
     if (run?.phase === 'node' && !run.fight) campEnteredAt.current = Date.now();
   }, [run?.phase, run?.nodeId, run?.fight]);
 
-  if (!run) return <div className="screen center muted">Preparing your quest…</div>;
-  const node = nodeById(run.map, run.nodeId);
-
-  if (session.activeExerciseId && run.phase !== 'end' && run.phase !== 'reward') {
+  if (!run) {
     return (
-      <div className="screen">
-        <Logger
-          key={session.activeExerciseId}
-          session={session}
-          sessionSets={sets}
-          meters={meters}
-          exerciseId={session.activeExerciseId}
-          settings={settings}
-          mastery={mastery[session.activeExerciseId] ?? 0}
-        />
-      </div>
+      <Screen scene="calm">
+        <p className="center-fill muted">Preparing your quest…</p>
+      </Screen>
     );
   }
+  const node = nodeById(run.map, run.nodeId);
+  const openMenu = () => setMenu(true);
 
-  let body;
-  if (run.phase === 'end') body = <RunEndView session={session} settings={settings} sets={sets} meters={meters} go={go} />;
-  else if (run.phase === 'reward' && run.reward) body = <RewardView sessionId={session.id!} run={run} settings={settings} />;
-  else if (run.phase === 'node' && run.fight) body = <FightView session={session} settings={settings} sets={sets} meters={meters} mastery={mastery} />;
-  else if (run.phase === 'node' && node?.type === 'campfire') body = <CampfireView sessionId={session.id!} run={run} enteredAt={campEnteredAt.current} />;
+  let view;
+  if (session.activeExerciseId && run.phase !== 'end' && run.phase !== 'reward') {
+    view = (
+      <Logger
+        key={session.activeExerciseId}
+        session={session}
+        sessionSets={sets}
+        meters={meters}
+        exerciseId={session.activeExerciseId}
+        settings={settings}
+        mastery={mastery[session.activeExerciseId] ?? 0}
+      />
+    );
+  } else if (run.phase === 'end') view = <RunEndView session={session} settings={settings} sets={sets} meters={meters} go={go} />;
+  else if (run.phase === 'reward' && run.reward) view = <RewardView sessionId={session.id!} run={run} settings={settings} />;
+  else if (run.phase === 'node' && run.fight)
+    view = <FightView session={session} settings={settings} sets={sets} meters={meters} mastery={mastery} openMenu={openMenu} />;
+  else if (run.phase === 'node' && node?.type === 'campfire') view = <CampfireView sessionId={session.id!} run={run} enteredAt={campEnteredAt.current} />;
   else
-    body = (
+    view = (
       <MapView
-        sessionId={session.id!}
+        session={session}
         run={run}
         meters={meters}
         settings={settings}
+        sets={sets}
         nemesis={(settings.nemeses ?? []).find((n) => n.id === run.nemesisId)}
+        openMenu={openMenu}
       />
     );
 
-  const damage = sets.reduce((s, x) => s + (x.damage ?? 0), 0);
   return (
-    <div className="screen session">
-      <div className="topbar">
-        <button className="btn btn-ghost" onClick={() => go({ name: 'home' })}>
-          ← Camp
-        </button>
-        <div className="topbar-mid">
-          <div className="clock outlined">{formatClock((now - session.startedAt) / 1000)}</div>
-          <div className="small muted">{damage} damage dealt</div>
-        </div>
-        {run.phase !== 'end' ? (
-          <button className={`btn btn-ghost ${endArmed ? 'danger' : ''}`} onClick={() => confirmEnd(() => abandonRun(session.id!))}>
-            {endArmed ? 'Tap again' : 'Finish'}
-          </button>
-        ) : (
-          <span style={{ width: 64 }} />
-        )}
+    <>
+      <div className="view-fade" key={`${run.phase}-${run.nodeId}-${session.activeExerciseId ?? ''}`}>
+        {view}
       </div>
-      {body}
-    </div>
+      <RunMenu open={menu} onClose={() => setMenu(false)} session={session} settings={settings} meters={meters} go={go} />
+    </>
   );
 }

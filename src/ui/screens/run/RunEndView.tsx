@@ -8,9 +8,10 @@ import type { LoggedSet, Session, Settings } from '../../../types';
 import type { Route } from '../../App';
 import { Pixel } from '../../art/Pixel';
 import { CROWN, SWORD } from '../../art/sprites';
-import { ExerciseCard } from '../../components/ExerciseCard';
+import { GameCard } from '../../components/ExerciseCard';
 import { MeterGrid } from '../../components/Meters';
-import { formatClock, useNow } from '../../hooks';
+import { formatClock } from '../../hooks';
+import { Screen, Sheet } from '../../layout/Screen';
 
 export function bossLine(session: Session, nemesisName?: string): string | null {
   const run = session.run;
@@ -21,9 +22,33 @@ export function bossLine(session: Session, nemesisName?: string): string | null 
   if (run.nemesisOutcome === 'escaped') lines.push(`${nemesisName ?? 'Your nemesis'} got away again.`);
   if (run.bossOutcome === 'defeated') lines.push(`You slew the ${boss}.`);
   else if (run.bossOutcome === 'broken') lines.push(`You shattered the ${boss}'s armor. It limped away beaten.`);
-  else if (run.bossOutcome === 'escaped') lines.push(`The ${boss} escaped. It will return as your nemesis.`);
+  else if (run.bossOutcome === 'escaped') lines.push(`The ${boss} escaped.`);
   else lines.push(`You never reached the ${boss}.`);
   return lines.join(' ');
+}
+
+export function StatTiles({ sets, startedAt, endedAt }: { sets: LoggedSet[]; startedAt: number; endedAt: number }) {
+  const working = sets.filter((s) => !s.isWarmup);
+  return (
+    <div className="tiles">
+      <div className="tile">
+        <b className="dmg"><Pixel sprite={SWORD} size={18} />{working.reduce((s, x) => s + (x.damage ?? 0), 0)}</b>
+        <small>Damage</small>
+      </div>
+      <div className="tile">
+        <b><Pixel sprite={CROWN} size={18} />{working.filter((s) => s.isPR).length}</b>
+        <small>PRs</small>
+      </div>
+      <div className="tile">
+        <b>{working.length}</b>
+        <small>Sets</small>
+      </div>
+      <div className="tile">
+        <b>{formatClock((endedAt - startedAt) / 1000)}</b>
+        <small>Time</small>
+      </div>
+    </div>
+  );
 }
 
 export function RunEndView({ session, settings, sets, meters, go }: {
@@ -34,91 +59,74 @@ export function RunEndView({ session, settings, sets, meters, go }: {
   go: (r: Route) => void;
 }) {
   const run = session.run!;
-  const now = useNow(5000);
   const [keep, setKeep] = useState<string | undefined>();
   const [remove, setRemove] = useState<string | undefined>();
+  const [swapOpen, setSwapOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const working = sets.filter((s) => !s.isWarmup);
-  const damage = working.reduce((s, x) => s + (x.damage ?? 0), 0);
-  const prs = working.filter((s) => s.isPR).length;
   const zones = meters ? allInZone(meters) : false;
   const full = settings.deck.length >= config.deck.maxSize;
   const keepable = run.runCards.filter((id) => !settings.deck.includes(id));
   const nemesis = (settings.nemeses ?? []).find((n) => n.id === run.nemesisId);
   const cleared = run.mode === 'run' && zones && !!run.bossOutcome;
+  const won = run.mode === 'training' || cleared || run.bossOutcome === 'defeated';
 
   const finish = async () => {
+    if (keep && full && !remove) {
+      setSwapOpen(true);
+      return;
+    }
     setBusy(true);
     await finishRun(session.id!, { keep, remove: full ? remove : undefined });
     go({ name: 'summary', sessionId: session.id! });
   };
 
   return (
-    <>
-      <h1 className="summary-title outlined">
-        {run.mode === 'training' ? 'Training complete!' : cleared ? 'Quest cleared!' : 'Quest ended'}
-      </h1>
-      <p className="center-text">
-        {run.mode === 'training'
-          ? 'The game now knows your baselines. Your next run is a real quest with a boss.'
-          : bossLine(session, nemesis?.name)}
-      </p>
-      {run.mode === 'run' && (
-        <p className={`center-text ${zones ? 'good' : 'muted'}`}>
-          {zones ? 'Every muscle reached its target zone.' : 'Some muscles are still below their zone. They will be waiting next time.'}
-        </p>
-      )}
-      <div className="stat-row">
-        <div className="stat panel pixel-corners">
-          <div className="stat-num dmg"><Pixel sprite={SWORD} size={24} />{damage}</div>
-          <div className="stat-label">Damage</div>
-        </div>
-        <div className="stat panel pixel-corners">
-          <div className="stat-num"><Pixel sprite={CROWN} size={24} />{prs}</div>
-          <div className="stat-label">PRs</div>
-        </div>
-        <div className="stat panel pixel-corners">
-          <div className="stat-num">{working.length}</div>
-          <div className="stat-label">Sets</div>
-        </div>
-        <div className="stat panel pixel-corners">
-          <div className="stat-num">{formatClock((now - session.startedAt) / 1000)}</div>
-          <div className="stat-label">Time</div>
-        </div>
+    <Screen scene={won ? 'victory' : 'calm'} floor={false} className="end-screen">
+      <div className="end-head">
+        <h1 className="title-banner outlined">{run.mode === 'training' ? 'Training complete!' : cleared ? 'Quest cleared!' : 'Quest ended'}</h1>
+        <p>{run.mode === 'training' ? 'The game knows your baselines now. Next time: a real quest with a boss.' : bossLine(session, nemesis?.name)}</p>
+        {run.mode === 'run' && (
+          <p className={zones ? 'good' : 'muted'}>{zones ? 'Every muscle reached its zone.' : 'Some muscles are still below their zone.'}</p>
+        )}
       </div>
+      <StatTiles sets={sets} startedAt={session.startedAt} endedAt={Date.now()} />
       {meters && (
-        <div className="panel pixel-corners">
+        <div className="panel end-meters">
           <MeterGrid meters={meters} />
         </div>
       )}
-
-      {keepable.length > 0 && (
+      {keepable.length > 0 ? (
         <>
-          <h3 className="section-title">Keep one card forever</h3>
-          <div className="hand">
+          <p className="section-label">Keep one card forever {full && <span className="muted">(deck full: you'll swap one out)</span>}</p>
+          <div className="keep-row">
             {keepable.map((id) => (
-              <ExerciseCard key={id} id={id} setsDone={0} lockedBy={null} highlight={keep === id} onPlay={() => setKeep(keep === id ? undefined : id)} onDiscard={() => {}} />
+              <button key={id} className={`keep-card ${keep === id ? 'picked' : ''}`} onClick={() => setKeep(keep === id ? undefined : id)} aria-pressed={keep === id} aria-label={getExercise(id).name}>
+                <GameCard card={{ id }} selected={keep === id} />
+              </button>
             ))}
           </div>
-          {keep && full && (
-            <>
-              <p className="center-text warn">Your deck is full ({config.deck.maxSize}). Choose a card to give up for {getExercise(keep).name}.</p>
-              <div className="swap-list">
-                {settings.deck.map((id) => (
-                  <button key={id} className={`picker-item pixel-corners ${remove === id ? 'picker-on' : ''}`} onClick={() => setRemove(id)}>
-                    {getExercise(id).name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
         </>
+      ) : (
+        <div className="grow" />
       )}
-      <div className="bottom-actions">
-        <button className="btn btn-primary btn-huge pixel-corners" disabled={busy || (!!keep && full && !remove)} onClick={finish}>
+      <div className="actions">
+        <button className="btn btn-primary btn-big" disabled={busy} onClick={finish}>
           {keep ? `Keep ${getExercise(keep).name} & finish` : 'Finish quest'}
         </button>
       </div>
-    </>
+      <Sheet open={swapOpen} title="Deck is full" onClose={() => setSwapOpen(false)}>
+        <p className="small">Choose a card to give up for {keep ? getExercise(keep).name : ''}.</p>
+        <div className="pick-grid">
+          {settings.deck.map((id) => (
+            <button key={id} className={`pick ${remove === id ? 'pick-on' : ''}`} onClick={() => setRemove(id)}>
+              {getExercise(id).name}
+            </button>
+          ))}
+        </div>
+        <button className="btn btn-primary" disabled={!remove} onClick={() => { setSwapOpen(false); void finish(); }}>
+          Swap and finish
+        </button>
+      </Sheet>
+    </Screen>
   );
 }

@@ -23,7 +23,7 @@ export function App() {
   const settings = useSettings();
   const active = useLiveQuery(async () => (await getActiveSession()) ?? null, [], 'loading' as const);
 
-  if (!settings || active === 'loading') return <div className="screen center muted">Loading…</div>;
+  if (!settings || active === 'loading') return <div className="app"><p className="center-fill muted">Loading…</p></div>;
 
   if (!settings.onboarded && !active) return <OnboardingScreen settings={settings} go={setRoute} />;
 

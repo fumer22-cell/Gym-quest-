@@ -2,7 +2,7 @@ import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GymQuestDB, setDatabase } from '../db/db';
-import { installBackdrop } from '../ui/art/render';
+import { installBackdrop, installFloor } from '../ui/art/render';
 import { App } from '../ui/App';
 import '../styles.css';
 import '../game.css';
@@ -23,6 +23,7 @@ async function indexedDbWorks(): Promise<boolean> {
 
 async function boot() {
   installBackdrop();
+  installFloor();
   const root = createRoot(document.getElementById('root')!);
   root.render(<div className="screen center muted">Loading your quest log…</div>);
 

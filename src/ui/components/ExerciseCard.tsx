@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react';
 import { getExercise } from '../../data/exercises';
 import { MUSCLE_INFO } from '../../data/muscles';
+import { masteryTier } from '../../logic/mastery';
 import type { Muscle } from '../../types';
 import { MuscleIcon, Pixel } from '../art/Pixel';
-import { masteryTier } from '../../logic/mastery';
 import { LOCK, SWIRL } from '../art/sprites';
 
 export function muscleStyle(m: Muscle): CSSProperties {
@@ -15,15 +15,14 @@ export function MuscleChips({ id, showSecondary = false }: { id: string; showSec
   return (
     <div className="chips">
       {ex.primaryMuscles.map((m) => (
-        <span key={m} className="chip pixel-corners" style={muscleStyle(m)}>
-          <MuscleIcon muscle={m} size={16} />
+        <span key={m} className="chip" style={muscleStyle(m)}>
+          <MuscleIcon muscle={m} size={14} />
           {MUSCLE_INFO[m].short}
         </span>
       ))}
       {showSecondary &&
         ex.secondaryMuscles.map((m) => (
-          <span key={m} className="chip chip-secondary pixel-corners" style={muscleStyle(m)}>
-            <MuscleIcon muscle={m} size={16} />
+          <span key={m} className="chip chip-secondary" style={muscleStyle(m)}>
             {MUSCLE_INFO[m].short}
           </span>
         ))}
@@ -31,76 +30,59 @@ export function MuscleChips({ id, showSecondary = false }: { id: string; showSec
   );
 }
 
-export function ExerciseCard({
-  id,
-  setsDone,
-  lockedBy,
-  mastery = 0,
-  disrupted,
-  highlight,
-  runCard,
-  onPlay,
-  onSwap,
-  onDiscard,
-}: {
+export interface CardInfo {
   id: string;
-  setsDone: number;
-  lockedBy: Muscle | null;
-  /** Card mastery level (frame tier + small damage bonus). */
+  setsDone?: number;
+  lockedBy?: Muscle | null;
   mastery?: number;
-  /** Locked by an enemy's Disrupt for this turn. */
   disrupted?: boolean;
-  /** Glows (e.g. a valid second card for a superset). */
   highlight?: boolean;
-  /** Temporary card dropped this run. */
   runCard?: boolean;
-  onPlay: () => void;
-  onSwap?: () => void;
-  onDiscard: () => void;
-}) {
-  const ex = getExercise(id);
-  const tier = masteryTier(mastery).toLowerCase();
+}
+
+/**
+ * A deck-builder card. All of its type is sized from the card's own width (container units),
+ * so the same card reads well fanned in the hand, on a reward screen or as a thumbnail.
+ */
+export function GameCard({ card, selected }: { card: CardInfo; selected?: boolean }) {
+  const ex = getExercise(card.id);
   const main = ex.primaryMuscles[0];
+  const tier = masteryTier(card.mastery ?? 0).toLowerCase();
   const primary = ex.primaryMuscles.map((m) => MUSCLE_INFO[m].short).join(' + ');
   const secondary = ex.secondaryMuscles.map((m) => MUSCLE_INFO[m].short).join(', ');
+  const blocked = !!card.lockedBy || card.disrupted;
   return (
     <div
-      className={`card ${ex.isCompound ? '' : 'card-iso'} ${lockedBy || disrupted ? 'card-locked' : ''} card-tier-${tier} ${highlight ? 'card-glow' : ''}`}
+      className={`gcard ${ex.isCompound ? 'gcard-compound' : 'gcard-iso'} tier-${tier} ${blocked ? 'gcard-blocked' : ''} ${card.highlight ? 'gcard-glow' : ''} ${selected ? 'gcard-selected' : ''}`}
       style={muscleStyle(main)}
     >
-      <span className="card-orb outlined" title="Working sets this workout">{setsDone}</span>
-      <button className="card-play pixel-corners" onClick={onPlay} disabled={!!lockedBy || disrupted} aria-label={`Play ${ex.name}`}>
-        <span className="card-banner pixel-corners">{ex.name}</span>
-        <span className="card-art">
+      <div className="gcard-frame">
+        <span className="gcard-orb outlined">{card.setsDone ?? 0}</span>
+        <span className="gcard-name">{ex.name}</span>
+        <span className="gcard-art">
           <MuscleIcon muscle={main} size={64} />
         </span>
-        <span className="card-type pixel-corners">
+        <span className="gcard-type">
           {ex.isCompound ? 'Compound' : 'Isolation'}
-          {mastery > 0 && ` · Lv ${mastery}`}
+          {(card.mastery ?? 0) > 0 && ` ${card.mastery}`}
         </span>
-        {runCard && <span className="card-run">Run card</span>}
-        <span className="card-text">
-          Strike <b>{primary}</b>
-          {secondary && <>. Grazes {secondary}</>}.
+        <span className="gcard-text">
+          <b>{primary}</b>
+          {secondary && <> · {secondary}</>}
         </span>
-      </button>
-      {!lockedBy && !disrupted && onSwap && (
-        <button className="card-swap outlined" onClick={onSwap} aria-label="Machine taken: swap for a similar exercise">
-          ⇄
-        </button>
+        {card.runCard && <span className="gcard-run">RUN</span>}
+      </div>
+      {card.lockedBy && (
+        <span className="gcard-overlay">
+          <Pixel sprite={LOCK} size={40} />
+          <span className="outlined">{MUSCLE_INFO[card.lockedBy].short} capped</span>
+        </span>
       )}
-      {disrupted && !lockedBy && (
-        <div className="card-lock">
-          <Pixel sprite={SWIRL} size={48} recolor={{ p: '#c06fd8' }} />
-          <span className="card-lock-text outlined">Disrupted this turn</span>
-        </div>
-      )}
-      {lockedBy && (
-        <div className="card-lock">
-          <Pixel sprite={LOCK} size={48} />
-          <span className="card-lock-text outlined">{MUSCLE_INFO[lockedBy].label} at fatigue cap</span>
-          <button className="btn pixel-corners" onClick={onDiscard}>Discard</button>
-        </div>
+      {card.disrupted && !card.lockedBy && (
+        <span className="gcard-overlay">
+          <Pixel sprite={SWIRL} size={40} recolor={{ p: '#c06fd8' }} />
+          <span className="outlined">Disrupted</span>
+        </span>
       )}
     </div>
   );

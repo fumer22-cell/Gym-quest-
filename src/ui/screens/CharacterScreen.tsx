@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
+import { Screen, Tabs, TopBar } from '../layout/Screen';
 import { config } from '../../config';
 import { getExercise } from '../../data/exercises';
 import { db } from '../../db/db';
@@ -70,6 +71,7 @@ function Sparkline({ points, unit, label }: { points: { at: number; v: number }[
 }
 
 export function CharacterScreen({ settings, go }: { settings: Settings; go: (r: Route) => void }) {
+  const [tab, setTab] = useState<'strength' | 'cards' | 'legend'>('strength');
   const sets = useLiveQuery(() => db.sets.toArray(), [], [] as LoggedSet[]);
   const sessions = useLiveQuery(() => db.sessions.filter((s) => !!s.endedAt).count(), [], 0);
   const working = sets.filter((s) => !s.isWarmup);
@@ -82,96 +84,99 @@ export function CharacterScreen({ settings, go }: { settings: Settings; go: (r: 
     .sort((a, b) => b.level - a.level);
 
   return (
-    <div className="screen">
-      <div className="topbar">
-        <button className="btn btn-ghost" onClick={() => go({ name: 'home' })}>← Camp</button>
-        <div className="topbar-mid"><div className="clock outlined">Character</div></div>
-        <span style={{ width: 64 }} />
+    <Screen scene="calm" floor={false} torches={false} className="list-screen">
+      <TopBar
+        left={<button className="icon-btn" onClick={() => go({ name: 'home' })} aria-label="Back to camp">←</button>}
+        center={<h1 className="screen-title outlined">Hero</h1>}
+      />
+      <div className="tiles">
+        <div className="tile"><b>{sessions}</b><small>Quests</small></div>
+        <div className="tile"><b>{settings.runsCleared ?? 0}</b><small>Cleared</small></div>
+        <div className="tile"><b>{working.length}</b><small>Sets</small></div>
+        <div className="tile"><b><Pixel sprite={CROWN} size={16} />{prs}</b><small>PRs</small></div>
       </div>
-
-      <div className="stat-row">
-        <div className="stat panel pixel-corners"><div className="stat-num">{sessions}</div><div className="stat-label">Quests</div></div>
-        <div className="stat panel pixel-corners"><div className="stat-num">{settings.runsCleared ?? 0}</div><div className="stat-label">Cleared</div></div>
-        <div className="stat panel pixel-corners"><div className="stat-num">{working.length}</div><div className="stat-label">Sets</div></div>
-        <div className="stat panel pixel-corners"><div className="stat-num"><Pixel sprite={CROWN} size={22} />{prs}</div><div className="stat-label">PRs</div></div>
-      </div>
-
-      <h3 className="section-title">Strength</h3>
-      <div className="panel pixel-corners" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {LIFTS.map((lift) => {
-          const ex = compoundFor(lift);
-          const pts = trend(sets, ex.id);
-          const best = pts.length ? Math.max(...pts.map((p) => p.v)) : null;
-          const boss = BOSS_FOR_LIFT[lift];
-          return (
-            <div key={lift}>
-              <div className="lift-row">
-                <Pixel sprite={CREATURES[boss.kind]} size={36} recolor={boss.recolor} />
-                <span className="lift-name">{ex.name}</span>
-                <span className="lift-value">{best ? `${fromKg(best, settings.unit)} ${settings.unit}` : '—'}</span>
-              </div>
-              {pts.length > 0 && <Sparkline points={pts} unit={settings.unit} label={`${ex.name} estimated 1RM`} />}
-            </div>
-          );
-        })}
-      </div>
-
-      <h3 className="section-title">Modifiers · {progress} progress</h3>
-      <div className="panel pixel-corners" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {MODIFIER_ORDER.map((m) => (
-          <div key={m} className="lift-row">
-            <Pixel sprite={MOD_ICON[m]} size={28} />
-            <span>
-              {MODIFIER_INFO[m].name}
-              <span className="small muted"> · {MODIFIER_INFO[m].effect}</span>
-            </span>
-            <span className={unlocked.includes(m) ? 'good' : 'muted'}>
-              {unlocked.includes(m) ? 'Unlocked' : `${config.modifiers.unlocks[m] - progress} to go`}
-            </span>
+      <Tabs
+        tabs={[
+          { id: 'strength', label: 'Strength' },
+          { id: 'cards', label: 'Mastery' },
+          { id: 'legend', label: 'Legend' },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+      <div className="scroll-area">
+        {tab === 'strength' && (
+          <div className="panel stack">
+            {LIFTS.map((lift) => {
+              const ex = compoundFor(lift);
+              const pts = trend(sets, ex.id);
+              const best = pts.length ? Math.max(...pts.map((p) => p.v)) : null;
+              const boss = BOSS_FOR_LIFT[lift];
+              return (
+                <div key={lift}>
+                  <div className="lift-row">
+                    <Pixel sprite={CREATURES[boss.kind]} size={32} recolor={boss.recolor} />
+                    <span className="lift-name">{ex.name}</span>
+                    <span className="lift-value">{best ? `${fromKg(best, settings.unit)} ${settings.unit}` : '—'}</span>
+                  </div>
+                  {pts.length > 0 && <Sparkline points={pts} unit={settings.unit} label={`${ex.name} estimated 1RM`} />}
+                </div>
+              );
+            })}
           </div>
-        ))}
-        <p className="small muted">+1 progress per cleared quest, +2 per nemesis slain.</p>
-      </div>
-
-      <h3 className="section-title">Nemeses</h3>
-      <div className="panel pixel-corners">
-        {nemeses.length === 0 ? (
-          <p className="muted">No boss has escaped you yet.</p>
-        ) : (
-          <ul className="log-list nemesis-list">
-            {nemeses.map((n) => (
-              <li key={n.id}>
-                <Pixel sprite={n.defeatedAt ? CROWN : SKULL} size={28} recolor={n.defeatedAt ? undefined : { w: '#a7f070' }} />
-                <span style={{ flex: 1 }}>
-                  {n.name}
-                  <span className="small muted">
-                    {' '}· {compoundFor(n.lift).name} {fromKg(n.targetWeightKg, settings.unit)} × {n.targetReps}
-                  </span>
+        )}
+        {tab === 'cards' && (
+          <div className="panel stack">
+            {deckMastery.map(({ id, level }) => (
+              <div key={id} className="lift-row">
+                <MuscleIcon muscle={getExercise(id).primaryMuscles[0]} size={22} />
+                <span>{getExercise(id).name}</span>
+                <span className={`tier tier-text-${masteryTier(level).toLowerCase()}`}>
+                  {masteryTier(level)} {level}
                 </span>
-                <span className={n.defeatedAt ? 'good' : 'warn'}>{n.defeatedAt ? 'Slain' : 'At large'}</span>
-              </li>
+              </div>
             ))}
-          </ul>
+            <p className="small muted">Cards level up every +{config.mastery.stepPct * 100}% on your estimated 1RM. No level cap.</p>
+          </div>
+        )}
+        {tab === 'legend' && (
+          <>
+            <p className="section-label">Modifiers · {progress} progress</p>
+            <div className="panel stack">
+              {MODIFIER_ORDER.map((m) => (
+                <div key={m} className="lift-row">
+                  <Pixel sprite={MOD_ICON[m]} size={24} />
+                  <span>
+                    {MODIFIER_INFO[m].name}
+                    <small className="muted"> {MODIFIER_INFO[m].effect}</small>
+                  </span>
+                  <span className={unlocked.includes(m) ? 'good' : 'muted'}>
+                    {unlocked.includes(m) ? 'Open' : `${config.modifiers.unlocks[m] - progress} to go`}
+                  </span>
+                </div>
+              ))}
+              <p className="small muted">+1 per cleared quest, +2 per nemesis slain.</p>
+            </div>
+            <p className="section-label">Nemeses</p>
+            <div className="panel stack">
+              {nemeses.length === 0 ? (
+                <p className="muted">No boss has escaped you yet.</p>
+              ) : (
+                nemeses.map((n) => (
+                  <div key={n.id} className="lift-row">
+                    <Pixel sprite={n.defeatedAt ? CROWN : SKULL} size={24} recolor={n.defeatedAt ? undefined : { w: '#a7f070' }} />
+                    <span>
+                      {n.name}
+                      <small className="muted"> {compoundFor(n.lift).name} {fromKg(n.targetWeightKg, settings.unit)}×{n.targetReps}</small>
+                    </span>
+                    <span className={n.defeatedAt ? 'good' : 'warn'}>{n.defeatedAt ? 'Slain' : 'At large'}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
         )}
       </div>
-
-      <h3 className="section-title">Card mastery</h3>
-      <div className="panel pixel-corners">
-        <ul className="log-list mastery-list">
-          {deckMastery.map(({ id, level }) => (
-            <li key={id}>
-              <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-                <MuscleIcon muscle={getExercise(id).primaryMuscles[0]} size={22} />
-                {getExercise(id).name}
-              </span>
-              <span className="muted">
-                {masteryTier(level)} · Lv {level}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <p className="small muted">Cards level up every +{config.mastery.stepPct * 100}% on your estimated 1RM. There is no level cap.</p>
-      </div>
-    </div>
+    </Screen>
   );
 }

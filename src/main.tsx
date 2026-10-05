@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { installBackdrop } from './ui/art/render';
+import { installBackdrop, installFloor } from './ui/art/render';
 import { App } from './ui/App';
 import './styles.css';
 import './game.css';
@@ -9,6 +9,7 @@ import './game.css';
 navigator.storage?.persist?.().catch(() => {});
 
 installBackdrop();
+installFloor();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

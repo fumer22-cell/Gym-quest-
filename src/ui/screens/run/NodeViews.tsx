@@ -4,10 +4,11 @@ import { getExercise } from '../../../data/exercises';
 import { claimReward, restAtCamp } from '../../../db/quest';
 import type { RunState, Settings } from '../../../types';
 import { Campfire, Pixel } from '../../art/Pixel';
-import { BOLT, CROWN } from '../../art/sprites';
+import { BOLT, CROWN, HERO } from '../../art/sprites';
 import { Hud } from '../../components/Combat';
-import { ExerciseCard } from '../../components/ExerciseCard';
+import { GameCard } from '../../components/ExerciseCard';
 import { formatClock, useNow } from '../../hooks';
+import { Screen, TopBar } from '../../layout/Screen';
 import { sfx } from '../../sound';
 
 export function RewardView({ sessionId, run, settings }: { sessionId: number; run: RunState; settings: Settings }) {
@@ -18,40 +19,55 @@ export function RewardView({ sessionId, run, settings }: { sessionId: number; ru
   }, [settings, r.nemesisSlain]);
   const title = r.treasure ? 'Treasure!' : r.nemesisSlain ? 'Nemesis slain!' : 'Victory!';
   return (
-    <>
-      <Hud run={run} />
-      <h1 className="summary-title outlined">{title}</h1>
-      {r.nemesisSlain && (
-        <p className="center-text nemesis-reward">
-          <Pixel sprite={CROWN} size={32} /> A legendary win. +2 modifier unlock progress and an extra charge.
-        </p>
-      )}
-      {!r.treasure && r.charge && (
-        <p className="center-text reward-charge">
-          <Pixel sprite={BOLT} size={24} /> +1 modifier charge
-        </p>
-      )}
-      <h3 className="section-title">{r.treasure ? 'Take a card or a charge' : 'Choose a card for this run'}</h3>
-      <div className="hand">
-        {r.cards.map((id) => (
-          <ExerciseCard key={id} id={id} setsDone={0} lockedBy={null} highlight={pick === id} onPlay={() => setPick(id)} onDiscard={() => {}} />
+    <Screen scene="victory" floor={false} className="reward-screen">
+      <TopBar center={<Hud run={run} />} />
+      <div className="reward-head">
+        <h1 className="title-banner outlined">{title}</h1>
+        {r.nemesisSlain && (
+          <p className="reward-note">
+            <Pixel sprite={CROWN} size={24} /> Legendary! +2 modifier progress and a bonus charge.
+          </p>
+        )}
+        {!r.treasure && r.charge && (
+          <p className="reward-note">
+            <Pixel sprite={BOLT} size={20} /> +1 modifier charge
+          </p>
+        )}
+        <p className="muted">{r.treasure ? 'Take a card or a modifier charge.' : 'Choose a card for the rest of this run.'}</p>
+      </div>
+      <div className="reward-cards">
+        {r.cards.map((id, i) => (
+          <button
+            key={id}
+            className={`reward-card ${pick === id ? 'picked' : ''}`}
+            style={{ animationDelay: `${i * 120}ms` }}
+            onClick={() => {
+              sfx(settings, 'select');
+              setPick(id);
+            }}
+            aria-pressed={pick === id}
+            aria-label={getExercise(id).name}
+          >
+            <GameCard card={{ id }} selected={pick === id} />
+          </button>
         ))}
       </div>
-      <p className="hint">{pick ? `${getExercise(pick).name} joins your deck for this run.` : 'Run cards last until the end of this run. You can keep one.'}</p>
-      <div className="bottom-actions">
-        <button className="btn btn-primary btn-huge pixel-corners" disabled={!pick} onClick={() => claimReward(sessionId, { card: pick })}>
-          Take card
+      <div className="actions">
+        <button className="btn btn-primary btn-big" disabled={!pick} onClick={() => claimReward(sessionId, { card: pick })}>
+          {pick ? `Take ${getExercise(pick).name}` : 'Pick a card'}
         </button>
-        {r.treasure && (
-          <button className="btn pixel-corners" onClick={() => claimReward(sessionId, { charge: true })}>
-            <Pixel sprite={BOLT} size={20} className="inline-icon" /> Take a modifier charge instead
+        <div className="row">
+          {r.treasure && (
+            <button className="btn grow" onClick={() => claimReward(sessionId, { charge: true })}>
+              <Pixel sprite={BOLT} size={16} className="inline-icon" /> Take a charge
+            </button>
+          )}
+          <button className="btn btn-ghost grow" onClick={() => claimReward(sessionId, {})}>
+            Skip
           </button>
-        )}
-        <button className="btn btn-ghost" onClick={() => claimReward(sessionId, {})}>
-          Skip
-        </button>
+        </div>
       </div>
-    </>
+    </Screen>
   );
 }
 
@@ -59,23 +75,28 @@ export function CampfireView({ sessionId, run, enteredAt }: { sessionId: number;
   const now = useNow(1000);
   const heal = Math.round(run.maxHp * config.campfire.healPct);
   return (
-    <>
-      <Hud run={run} />
-      <div className="campfire-scene">
-        <h1 className="summary-title outlined">Campfire</h1>
-        <div className="campfire-wrap">
-          <Campfire size={160} />
+    <Screen scene="camp" torches={false} className="camp-screen">
+      <TopBar center={<Hud run={run} />} />
+      <div className="camp-scene">
+        <h1 className="title-banner outlined">Campfire</h1>
+        <div className="camp-fire-row">
+          <span className="camp-hero anim-breathe">
+            <Pixel sprite={HERO} size={96} />
+          </span>
+          <span className="camp-fire">
+            <Campfire size={128} />
+          </span>
         </div>
-        <p className="center-text">
-          A planned longer break. Take about {config.campfire.suggestedMinutes} minutes: sip water, walk around, loosen up.
+        <p className="camp-time outlined">{formatClock((now - enteredAt) / 1000)}</p>
+        <p className="center-text muted">
+          A planned longer break: about {config.campfire.suggestedMinutes} minutes. Sip water, walk, loosen up.
         </p>
-        <p className="clock outlined center-text">{formatClock((now - enteredAt) / 1000)}</p>
       </div>
-      <div className="bottom-actions">
-        <button className="btn btn-primary btn-huge pixel-corners" onClick={() => restAtCamp(sessionId)}>
+      <div className="actions">
+        <button className="btn btn-primary btn-big" onClick={() => restAtCamp(sessionId)}>
           Rest · +{heal} HP
         </button>
       </div>
-    </>
+    </Screen>
   );
 }
