@@ -1,0 +1,210 @@
+/* Game screens: HUD, enemies, map, rest cards, modifiers, rewards. Tokens come from styles.css. */
+
+/* ── HUD & HP ─────────────────────────────────────────────────────────── */
+.hud { display: flex; align-items: center; gap: 14px; padding: 10px 14px; }
+.hud-hp { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.hud-hp .hpbar { flex: 1; }
+.hud-stat { display: flex; align-items: center; gap: 4px; font-size: 24px; }
+.hud-hurt { box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--crimson); }
+.hpbar { position: relative; height: 20px; background: var(--ink); min-width: 80px; box-shadow: inset 0 0 0 2px var(--ink); }
+.hpbar-fill { position: absolute; left: 2px; top: 2px; bottom: 2px; max-width: calc(100% - 4px); background: var(--crimson); box-shadow: inset 0 4px 0 rgba(255, 255, 255, 0.25); transition: width 0.3s steps(4); }
+.hpbar-player .hpbar-fill { background: var(--green); }
+.hpbar-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 17px; line-height: 1; }
+
+/* ── Enemies ──────────────────────────────────────────────────────────── */
+.enemies { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); align-items: end; }
+.enemy {
+  border: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  min-width: 0;
+  color: var(--text);
+}
+.enemy:disabled { opacity: 1; filter: none; cursor: default; }
+.enemy-selected { background: rgba(255, 205, 117, 0.08); box-shadow: inset 0 0 0 3px var(--gold); }
+.enemy-dead { opacity: 0.35 !important; filter: grayscale(1) !important; }
+.enemy-sprite { position: relative; display: flex; justify-content: center; min-height: 60px; align-items: flex-end; }
+.enemy-name { font-size: 18px; text-align: center; line-height: 1; }
+.enemy .hpbar { width: 100%; max-width: 160px; }
+.enemy-intents { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+.intent { display: inline-flex; align-items: center; gap: 2px; font-size: 24px; padding: 2px 8px 2px 4px; background: var(--ink); box-shadow: inset 0 0 0 2px var(--panel-line); }
+.intent-attack { box-shadow: inset 0 0 0 2px var(--crimson); }
+.intent-attack b { color: var(--orange); }
+.intent-regen b { color: var(--lime); }
+.intent-next { opacity: 0.75; display: inline-flex; }
+.intent-idle { color: var(--dim); font-size: 22px; padding: 0 4px; }
+.enemy-weak { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px; font-size: 15px; color: var(--muted); }
+.enemy-weak-chip { display: inline-flex; align-items: center; gap: 2px; padding: 0 6px 0 2px; background: var(--ink); box-shadow: inset 0 0 0 2px var(--muscle); color: var(--text); }
+.enemy-hit {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  font-size: 44px;
+  color: var(--white);
+  pointer-events: none;
+  animation: hit-float 0.9s steps(9) forwards;
+  white-space: nowrap;
+}
+.enemy-hit-crit { color: var(--gold); font-size: 56px; }
+.enemy-compact { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 4px; }
+.enemy-compact .enemy-name { font-size: 17px; }
+.enemy-compact .hpbar { width: 120px; }
+.shake-big { animation: shake-big 0.5s steps(8); }
+@keyframes shake-big {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(-8px, 4px); }
+  30% { transform: translate(8px, -4px); }
+  45% { transform: translate(-6px, -4px); }
+  60% { transform: translate(6px, 4px); }
+  80% { transform: translate(-3px, 2px); }
+}
+.weakpoint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--gold);
+  color: var(--gold);
+  font-size: 18px;
+  text-align: center;
+}
+.weakpoint small { color: var(--muted); font-size: 15px; }
+.weakpoint-broken { color: var(--lime); box-shadow: inset 0 0 0 2px var(--lime); }
+.combat-log { text-align: center; color: var(--muted); font-size: 17px; min-height: 1.2em; }
+.attack-warning { text-align: center; color: var(--orange); font-size: 17px; }
+.nemesis-banner { text-align: center; font-size: 28px; color: var(--lime); animation: ready-pulse 1s steps(2) 3; }
+.nemesis-line { color: var(--lime); }
+.superset-banner { color: var(--aqua); text-align: center; }
+.superset-tag { color: var(--aqua); font-size: 16px; }
+.logger-target { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+/* ── Rest cards ───────────────────────────────────────────────────────── */
+.rest-cards { display: flex; flex-direction: column; gap: 6px; }
+.rest-cards-title { font-size: 16px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); text-align: center; }
+.rest-cards-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.rest-card {
+  border: 0;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  background: var(--navy);
+  box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--blue), inset 0 -6px 0 0 #1d2550;
+  min-width: 0;
+}
+.rest-card b { font-size: 18px; line-height: 1; }
+.rest-card small { font-size: 14px; color: #c9d6f5; line-height: 1.1; }
+.rest-card em { font-style: normal; font-size: 13px; color: var(--aqua); line-height: 1.1; }
+.rest-card-real { box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--aqua), inset 0 -6px 0 0 #1d2550; }
+.rest-card:active { transform: translateY(2px); }
+
+/* ── Modifiers ────────────────────────────────────────────────────────── */
+.mods { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; }
+.mods-head { display: flex; justify-content: space-between; align-items: center; }
+.mods-charges { display: inline-flex; align-items: center; gap: 4px; color: var(--gold); }
+.mods-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 6px; }
+.mod {
+  border: 0;
+  min-height: 56px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: var(--slate);
+  box-shadow: inset 0 0 0 3px var(--ink);
+  font-size: 15px;
+  line-height: 1;
+}
+.mod small { font-size: 12px; color: var(--muted); }
+.mod-on { background: var(--teal); box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--aqua); }
+.mods-desc { font-size: 16px; }
+
+/* ── Card extras ──────────────────────────────────────────────────────── */
+.card-tier-bronze .card-play { box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px #c47a3d, inset 0 -8px 0 0 var(--frame-lo); }
+.card-tier-silver .card-play { box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--silver), inset 0 -8px 0 0 var(--frame-lo); }
+.card-tier-gold .card-play { box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--gold), inset 0 0 0 7px var(--orange), inset 0 -8px 0 0 var(--frame-lo); }
+.card-tier-mythic .card-play {
+  box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--aqua), inset 0 0 0 7px #c06fd8, inset 0 -8px 0 0 var(--frame-lo);
+  animation: mythic 2s steps(4) infinite;
+}
+@keyframes mythic { 50% { filter: brightness(1.15); } }
+.card-glow { outline: 3px solid var(--aqua); outline-offset: 2px; }
+.card-run {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  font-size: 13px;
+  padding: 0 6px;
+  background: var(--ink);
+  color: var(--aqua);
+}
+
+/* ── Map ──────────────────────────────────────────────────────────────── */
+.map-head { display: flex; flex-direction: column; gap: 4px; text-align: center; }
+.map-head h2 { font-size: 34px; color: var(--gold); }
+.map { padding: 10px; }
+.map-canvas { position: relative; }
+.map-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map-lines line { stroke: var(--panel-line); stroke-width: 3; stroke-dasharray: 6 6; }
+.map-lines line.line-done { stroke: var(--gold); stroke-dasharray: none; }
+.map-lines line.line-open { stroke: var(--aqua); }
+.map-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  box-shadow: inset 0 0 0 3px var(--panel-line);
+  clip-path: polygon(25% 0, 75% 0, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0 75%, 0 25%);
+}
+.map-node:disabled { opacity: 1; filter: none; }
+.map-far { opacity: 0.55 !important; }
+.map-done { box-shadow: inset 0 0 0 3px var(--gold); opacity: 0.7 !important; }
+.map-here { box-shadow: inset 0 0 0 3px var(--gold), inset 0 0 0 6px var(--orange); }
+.map-open { box-shadow: inset 0 0 0 3px var(--aqua); animation: node-pulse 1.2s steps(2) infinite; cursor: pointer; }
+.node-boss { width: 80px; height: 80px; }
+@keyframes node-pulse { 50% { box-shadow: inset 0 0 0 3px var(--aqua), inset 0 0 0 6px var(--teal); } }
+.map-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; font-size: 16px; color: var(--muted); margin-top: 8px; }
+.map-legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ── Rewards, campfire, run end ───────────────────────────────────────── */
+.reward-charge, .nemesis-reward { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--gold); }
+.campfire-scene { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.good { color: var(--lime); }
+.swap-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.picker-on { background: var(--teal) !important; box-shadow: inset 0 0 0 3px var(--ink), inset 0 0 0 5px var(--aqua) !important; }
+.meters-fold summary { cursor: pointer; font-size: 18px; color: var(--gold); margin-bottom: 8px; }
+.inline-icon { display: inline-block; vertical-align: middle; }
+
+/* ── Onboarding & tracker ─────────────────────────────────────────────── */
+.onboard-step { display: flex; flex-direction: column; gap: 12px; }
+.onboard-step h2 { font-size: 34px; color: var(--gold); text-align: center; }
+.slot { display: flex; flex-direction: column; gap: 6px; }
+.slot-title { font-size: 18px; color: var(--muted); }
+.slot-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.dots { display: flex; justify-content: center; gap: 8px; }
+.dots span { width: 12px; height: 12px; background: var(--panel-line); }
+.dots span.on { background: var(--gold); }
+.lift-row { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; }
+.lift-name { font-size: 20px; }
+.lift-value { font-size: 26px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.spark { width: 100%; height: 36px; display: block; }
+.spark-line { fill: none; stroke: var(--gold); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.spark-area { fill: rgba(255, 205, 117, 0.12); }
+.spark-dot { fill: var(--gold); }
+.nemesis-list li { display: flex; gap: 10px; align-items: center; }
+.mastery-list li { display: flex; justify-content: space-between; gap: 10px; }

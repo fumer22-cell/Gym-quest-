@@ -7,6 +7,8 @@ import { Pixel } from '../art/Pixel';
 import { CROWN, SWORD } from '../art/sprites';
 import { SessionDetail } from '../components/SessionDetail';
 import { formatClock } from '../hooks';
+import { getExercise } from '../../data/exercises';
+import { bossLine } from './run/RunEndView';
 
 export function SummaryScreen({ sessionId, settings, go }: { sessionId: number; settings: Settings; go: (r: Route) => void }) {
   const session = useLiveQuery(() => db.sessions.get(sessionId), [sessionId]);
@@ -19,7 +21,13 @@ export function SummaryScreen({ sessionId, settings, go }: { sessionId: number; 
 
   return (
     <div className="screen">
-      <h1 className="summary-title outlined">Quest complete!</h1>
+      <h1 className="summary-title outlined">
+        {session.run?.mode === 'training' ? 'Training complete!' : session.run?.cleared ? 'Quest cleared!' : 'Quest complete!'}
+      </h1>
+      {session.run && bossLine(session, (settings.nemeses ?? []).find((n) => n.id === session.run?.nemesisId)?.name) && (
+        <p className="center-text">{bossLine(session, (settings.nemeses ?? []).find((n) => n.id === session.run?.nemesisId)?.name)}</p>
+      )}
+      {session.run?.keptCard && <p className="center-text good">{getExercise(session.run.keptCard).name} joined your deck for good.</p>}
       <div className="stat-row">
         <div className="stat panel pixel-corners">
           <div className="stat-num dmg"><Pixel sprite={SWORD} size={24} />{damage}</div>

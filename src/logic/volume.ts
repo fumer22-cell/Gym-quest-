@@ -7,14 +7,18 @@ export function emptyMuscleMap(): Record<Muscle, number> {
 }
 
 /** Hard sets per muscle: primary = 1.0, secondary = 0.5, warm-ups = 0. */
-export function setsByMuscle(sets: Pick<LoggedSet, 'exerciseId' | 'isWarmup'>[]): Record<Muscle, number> {
+export function setsByMuscle<T extends Pick<LoggedSet, 'exerciseId' | 'isWarmup'>>(
+  sets: T[],
+  weight: (s: T) => number = () => 1,
+): Record<Muscle, number> {
   const out = emptyMuscleMap();
   for (const s of sets) {
     if (s.isWarmup) continue;
     const ex = findExercise(s.exerciseId);
     if (!ex) continue;
-    for (const m of ex.primaryMuscles) out[m] += config.volume.primaryCredit;
-    for (const m of ex.secondaryMuscles) out[m] += config.volume.secondaryCredit;
+    const w = weight(s);
+    for (const m of ex.primaryMuscles) out[m] += config.volume.primaryCredit * w;
+    for (const m of ex.secondaryMuscles) out[m] += config.volume.secondaryCredit * w;
   }
   return out;
 }

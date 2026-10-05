@@ -87,6 +87,9 @@ export function SettingsScreen({ settings, go }: { settings: Settings; go: (r: R
         <button className={`toggle pixel-corners ${settings.haptics ? 'toggle-on' : ''}`} onClick={() => updateSettings({ haptics: !settings.haptics })} aria-pressed={settings.haptics}>
           Vibration
         </button>
+        <button className={`toggle pixel-corners ${settings.sound ? 'toggle-on' : ''}`} onClick={() => updateSettings({ sound: !settings.sound })} aria-pressed={settings.sound}>
+          Sound effects
+        </button>
       </section>
 
       <section>

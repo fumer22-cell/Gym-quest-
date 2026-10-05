@@ -6,7 +6,7 @@ import type { Session } from '../../types';
 import type { Route } from '../App';
 import { Campfire } from '../art/Pixel';
 
-export function HomeScreen({ active, go }: { active: Session | null; go: (r: Route) => void }) {
+export function HomeScreen({ active, go, calibrated = true }: { active: Session | null; go: (r: Route) => void; calibrated?: boolean }) {
   const lastDone = useLiveQuery(() => db.sessions.orderBy('startedAt').reverse().filter((s) => !!s.endedAt).first(), []);
   const storage = useStorageInfo();
 
@@ -36,9 +36,12 @@ export function HomeScreen({ active, go }: { active: Session | null; go: (r: Rou
 
       <div className="bottom-actions">
         <button className="btn btn-primary btn-huge pixel-corners" onClick={active ? () => go({ name: 'session' }) : begin}>
-          {active ? 'Resume quest' : 'Begin quest'}
+          {active ? 'Resume quest' : calibrated ? 'Begin quest' : 'Enter Training Grounds'}
         </button>
         <div className="row">
+          <button className="btn grow pixel-corners" onClick={() => go({ name: 'character' })}>
+            Character
+          </button>
           <button className="btn grow pixel-corners" onClick={() => go({ name: 'history' })}>
             Chronicle
           </button>

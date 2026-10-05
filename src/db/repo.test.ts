@@ -2,6 +2,9 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { config } from '../config';
 import { getExercise } from '../data/exercises';
+import { makeFight } from '../logic/run/run';
+import type { Enemy, Muscle } from '../types';
+import { db } from './db';
 import { GymQuestDB, setDatabase } from './db';
 import {
   deleteSession, deleteSet, endSession, exportData, finishExercise, getActiveSession, getMeters, getPrefill,
@@ -68,6 +71,20 @@ describe('repo', () => {
   });
 });
 
+/** Put the session into a fight against one known enemy (chest unless told otherwise). */
+async function forceFight(sessionId: number, weakness: Muscle[] = ['chest'], hp = 2000) {
+  const session = (await getActiveSession())!;
+  const run = session.run!;
+  const nodeId = run.map[0].id;
+  const enemy: Enemy = {
+    id: 'e1', kind: 'knight', name: 'Shield Knight', weakness, hp, maxHp: hp,
+    intents: Array.from({ length: 3 }, () => ({ type: 'idle' as const, value: 0 })),
+  };
+  await db.sessions.update(sessionId, {
+    run: { ...run, nodeId, visited: [nodeId], phase: 'node', fight: makeFight(nodeId, [enemy], () => 0.5) },
+  });
+}
+
 describe('milestone 2: damage & fatigue in storage', () => {
   it('stores damage, PRs and e1RM on logged sets', async () => {
     const day = 24 * 3_600_000;
@@ -75,15 +92,24 @@ describe('milestone 2: damage & fatigue in storage', () => {
     await logSet({ sessionId: s1.id!, exerciseId: 'bench_press', weightKg: 60, reps: 8, isWarmup: false }, 1000);
     await endSession(s1.id!, 2000);
     const s2 = await startSession(Math.random, 4 * day);
+    await forceFight(s2.id!);
     const warm = await logSet({ sessionId: s2.id!, exerciseId: 'bench_press', weightKg: 40, reps: 8, isWarmup: true }, 4 * day);
     expect(warm.damage).toBe(0);
     const same = await logSet({ sessionId: s2.id!, exerciseId: 'bench_press', weightKg: 60, reps: 8, isWarmup: false }, 4 * day + 1);
-    expect(same).toMatchObject({ damage: 100, isPR: false });
+    expect(same).toMatchObject({ damage: 100, isPR: false, targetEnemyId: 'e1' });
     const pr = await logSet({ sessionId: s2.id!, exerciseId: 'bench_press', weightKg: 66, reps: 8, isWarmup: false }, 4 * day + 2);
     expect(pr).toMatchObject({ damage: 220, isPR: true });
     expect(pr.e1rm).toBeCloseTo(66 * (1 + 8 / 30), 6);
+    const hp = (await getActiveSession())!.run!.fight!.enemies[0].hp;
+    expect(hp).toBe(2000 - 100 - 220);
   });
 
+  it('sets outside a fight are recorded but deal no damage', async () => {
+    const s = await startSession(Math.random, 0);
+    const set = await logSet({ sessionId: s.id!, exerciseId: 'bench_press', weightKg: 60, reps: 8, isWarmup: false }, 1);
+    expect(set.damage).toBe(0);
+    expect(await setsForSession(s.id!)).toHaveLength(1);
+  });
   it('meters include carryover, and capped muscles are never dealt', async () => {
     const hour = 3_600_000;
     const s1 = await startSession(Math.random, 0);
@@ -109,11 +135,14 @@ describe('milestone 2: damage & fatigue in storage', () => {
 
   it('sets logged on a locked card deal no damage', async () => {
     const s = await startSession(Math.random, 0);
+    await forceFight(s.id!, ['chest'], 5000);
     let last;
     for (let i = 0; i < config.volume.fatigueCap + 1; i++) {
       last = await logSet({ sessionId: s.id!, exerciseId: 'cable_fly', weightKg: 20, reps: 12, isWarmup: false }, i + 1);
     }
     expect(last!.damage).toBe(0);
     expect((await setsForSession(s.id!))[0].damage).toBeGreaterThan(0);
+    // Once chest is capped the chest-only enemy is "worn down": the fight is won.
+    expect((await getActiveSession())!.run!.phase).toBe('reward');
   });
 });

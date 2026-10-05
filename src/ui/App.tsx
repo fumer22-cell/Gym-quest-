@@ -2,9 +2,11 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { getActiveSession } from '../db/repo';
 import { useSettings } from './hooks';
+import { CharacterScreen } from './screens/CharacterScreen';
 import { HistoryScreen } from './screens/HistoryScreen';
+import { OnboardingScreen } from './screens/OnboardingScreen';
 import { HomeScreen } from './screens/HomeScreen';
-import { SessionScreen } from './screens/SessionScreen';
+import { RunScreen } from './screens/RunScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SummaryScreen } from './screens/SummaryScreen';
 
@@ -13,7 +15,8 @@ export type Route =
   | { name: 'session' }
   | { name: 'history' }
   | { name: 'settings' }
-  | { name: 'summary'; sessionId: number };
+  | { name: 'summary'; sessionId: number }
+  | { name: 'character' };
 
 export function App() {
   const [route, setRoute] = useState<Route>({ name: 'home' });
@@ -22,10 +25,14 @@ export function App() {
 
   if (!settings || active === 'loading') return <div className="screen center muted">Loading…</div>;
 
+  if (!settings.onboarded && !active) return <OnboardingScreen settings={settings} go={setRoute} />;
+
   switch (route.name) {
+    case 'character':
+      return <CharacterScreen settings={settings} go={setRoute} />;
     case 'session':
       if (!active) return <HomeScreen active={null} go={setRoute} />;
-      return <SessionScreen session={active} settings={settings} go={setRoute} />;
+      return <RunScreen session={active} settings={settings} go={setRoute} />;
     case 'history':
       return <HistoryScreen settings={settings} go={setRoute} />;
     case 'settings':
@@ -33,6 +40,6 @@ export function App() {
     case 'summary':
       return <SummaryScreen sessionId={route.sessionId} settings={settings} go={setRoute} />;
     default:
-      return <HomeScreen active={active} go={setRoute} />;
+      return <HomeScreen active={active} go={setRoute} calibrated={!!settings.calibrated} />;
   }
 }

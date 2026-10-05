@@ -11,6 +11,10 @@ export interface DealContext {
   trained: Record<Muscle, number>;
   /** Cards whose muscles are at the fatigue cap are never dealt. */
   isLocked?: (id: string) => boolean;
+  /** In a fight, only cards that can hit an enemy are dealt. */
+  playable?: (id: string) => boolean;
+  /** Muscles to favor when dealing filler cards (the current enemies' weaknesses). */
+  wanted?: Muscle[];
   rng: Rng;
 }
 
@@ -87,8 +91,14 @@ function dealable(id: string, state: HandState, ctx: DealContext): boolean {
     isAvailable(ex, ctx.equipment) &&
     !state.hand.includes(id) &&
     !state.swappedOut.includes(id) &&
-    !ctx.isLocked?.(id)
+    !ctx.isLocked?.(id) &&
+    (ctx.playable?.(id) ?? true)
   );
+}
+
+/** Cards that are fine in general but can't be dealt right now; they wait in the pile. */
+function heldBack(id: string, ctx: DealContext): boolean {
+  return !!ctx.isLocked?.(id) || (ctx.playable ? !ctx.playable(id) : false);
 }
 
 export function startHand(deck: readonly string[], ctx: DealContext): HandState {
@@ -104,9 +114,10 @@ export function fillerCard(state: HandState, ctx: DealContext): string | undefin
   const used = new Set([...state.hand, ...state.discard, ...state.swappedOut]);
   const candidates = EXERCISES.filter((e) => !used.has(e.id) && dealable(e.id, state, ctx));
   if (candidates.length === 0) return undefined;
+  const wanted = (m: Muscle) => (ctx.wanted?.includes(m) ? 0 : 1);
   const muscles = shuffle(MUSCLES, ctx.rng)
     .filter((m) => candidates.some((e) => e.primaryMuscles.includes(m)))
-    .sort((a, b) => ctx.trained[a] - ctx.trained[b]);
+    .sort((a, b) => wanted(a) - wanted(b) || ctx.trained[a] - ctx.trained[b]);
   const target = muscles[0];
   if (!target) return undefined;
   const pool = candidates.filter((e) => e.primaryMuscles.includes(target));
@@ -119,8 +130,8 @@ function drawOne(state: HandState, ctx: DealContext): HandState | undefined {
   while (drawPile.length > 0) {
     const id = drawPile.shift()!;
     if (dealable(id, state, ctx)) return { ...state, drawPile: [...drawPile, ...skipped], hand: [...state.hand, id] };
-    // Locked cards stay in the pile in case they become playable later.
-    if (ctx.isLocked?.(id)) skipped.push(id);
+    // Locked or off-target cards stay in the pile in case they become playable later.
+    if (heldBack(id, ctx)) skipped.push(id);
   }
   const rest = { ...state, drawPile: skipped };
   const filler = fillerCard(rest, ctx);
@@ -171,4 +182,47 @@ export function swapCard(state: HandState, id: string, ctx: DealContext): HandSt
   const hand = [...state.hand];
   hand[idx] = alt.id;
   return { ...state, hand, swappedOut: [...state.swappedOut, id] };
+}
+
+/**
+ * At the start of a fight (and whenever enemies or fatigue change), cards that can't hit any
+ * enemy, or are locked by fatigue, go back to the draw pile. The hand is refilled with cards that
+ * hit a weakness with their primary muscle (`ctx.playable`), and only if those run out with cards
+ * that graze one (`loose`), so the hand never holds dead cards.
+ */
+export function refreshForFight(
+  state: HandState,
+  ctx: DealContext,
+  keep?: string,
+  loose?: (id: string) => boolean,
+): HandState {
+  const strong = (id: string) => (ctx.playable?.(id) ?? true) && !ctx.isLocked?.(id);
+  const out = state.hand.filter((id) => id !== keep && !strong(id));
+  let s: HandState = {
+    ...state,
+    hand: state.hand.filter((id) => !out.includes(id)),
+    drawPile: [...state.drawPile, ...out],
+  };
+  s = fillHand(s, ctx);
+  if (loose && s.hand.length < config.deck.handSize) s = fillHand(s, { ...ctx, playable: loose });
+  return s;
+}
+
+/** A newly won run card goes to the top of the draw pile. */
+export function addRunCard(state: HandState, id: string): HandState {
+  if (state.hand.includes(id) || state.drawPile.includes(id)) return state;
+  return { ...state, drawPile: [id, ...state.drawPile] };
+}
+
+/** Put a specific card in hand (e.g. the boss's weak-point lift), bumping the last card to the pile. */
+export function ensureInHand(state: HandState, id: string): HandState {
+  if (state.hand.includes(id)) return state;
+  const rest = state.hand.length >= config.deck.handSize ? state.hand.slice(0, config.deck.handSize - 1) : state.hand;
+  const bumped = state.hand.filter((h) => !rest.includes(h));
+  return {
+    hand: [id, ...rest],
+    drawPile: [...bumped, ...state.drawPile.filter((d) => d !== id)],
+    discard: state.discard.filter((d) => d !== id),
+    swappedOut: state.swappedOut,
+  };
 }

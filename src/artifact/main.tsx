@@ -5,6 +5,7 @@ import { GymQuestDB, setDatabase } from '../db/db';
 import { installBackdrop } from '../ui/art/render';
 import { App } from '../ui/App';
 import '../styles.css';
+import '../game.css';
 import './artifact.css';
 import { connectCloud, setupDownloads } from './cloud';
 

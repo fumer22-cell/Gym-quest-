@@ -1,6 +1,7 @@
 import { config } from '../config';
 import { findExercise } from '../data/exercises';
 import { MUSCLES, type Exercise, type LoggedSet, type Muscle } from '../types';
+import { fatigueWeight } from './modifiers';
 import { emptyMuscleMap, setsByMuscle } from './volume';
 
 const HOUR = 3_600_000;
@@ -33,7 +34,7 @@ export function carryoverByMuscle(previousSets: LoggedSet[], now: number): Recor
     if (s.isWarmup) continue;
     const ex = findExercise(s.exerciseId);
     if (!ex) continue;
-    const k = decayFactor(now - s.loggedAt);
+    const k = decayFactor(now - s.loggedAt) * fatigueWeight(s);
     if (k <= 0) continue;
     for (const m of ex.primaryMuscles) out[m] += config.volume.primaryCredit * k;
     for (const m of ex.secondaryMuscles) out[m] += config.volume.secondaryCredit * k;
@@ -49,10 +50,11 @@ export function meterStatus(sessionSets: number, fatigue: number): MeterStatus {
 
 export function muscleMeters(sessionSets: LoggedSet[], previousSets: LoggedSet[], now: number): Meters {
   const session = setsByMuscle(sessionSets);
+  const sessionFatigue = setsByMuscle(sessionSets, fatigueWeight);
   const carry = carryoverByMuscle(previousSets, now);
   const out = {} as Meters;
   for (const m of MUSCLES) {
-    const fatigue = session[m] + carry[m];
+    const fatigue = sessionFatigue[m] + carry[m];
     out[m] = { sessionSets: session[m], carryover: carry[m], fatigue, status: meterStatus(session[m], fatigue) };
   }
   return out;
