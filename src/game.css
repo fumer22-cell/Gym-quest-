@@ -120,19 +120,22 @@
 .stage-ground { position: absolute; inset: 0; z-index: 1; }
 .combat-log { font-size: 15px; color: var(--muted); text-align: center; max-width: 92%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: fade-in 0.3s steps(3); }
 
-.hero { position: absolute; left: 3%; bottom: 14%; height: min(34cqh, 150px); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.hero { position: absolute; left: 6%; bottom: 20%; height: min(19cqh, 88px); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
 .hero-sprite, .hero-sprite img { height: 100%; width: auto; }
 .hero-sprite { display: block; }
-.stage-compact .hero { height: min(46cqh, 130px); bottom: 12%; }
+.stage-compact .hero { height: min(34cqh, 64px); bottom: 16%; left: 8%; }
 
-.foes { position: absolute; left: 34%; right: 0; bottom: 7%; top: 0; display: flex; justify-content: space-around; align-items: flex-end; }
+.foes { position: absolute; left: 30%; right: 2%; bottom: 10%; top: 0; display: flex; justify-content: space-around; align-items: flex-end; gap: 4px; }
+/* Classic formation: the middle of three stands a step back. */
+.foes-3 .foe:nth-child(2) { margin-bottom: 7%; }
 .foe {
   position: relative;
   border: 0;
   background: none;
   padding: 0;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 1 1 0;
+  max-width: 140px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -167,17 +170,18 @@
   border-top: 10px solid var(--gold);
   animation: intent-bob 0.8s steps(2) infinite;
 }
-.foe-body { position: relative; display: flex; justify-content: center; align-items: flex-end; height: min(calc(36cqh * var(--foe-scale, 1)), calc(150px * var(--foe-scale, 1)), 30cqw); }
-.foe-boss .foe-body { height: min(50cqh, 220px, 52cqw); }
-.stage-compact .foe-body { height: min(calc(44cqh * var(--foe-scale, 1)), calc(120px * var(--foe-scale, 1)), 28cqw); }
-.stage-compact .foe-boss .foe-body { height: min(54cqh, 160px, 46cqw); }
+.foe-body { position: relative; display: flex; justify-content: center; align-items: flex-end; height: min(calc(18cqh * var(--foe-scale, 1)), calc(80px * var(--foe-scale, 1)), 24cqw); }
+.foe-boss { max-width: 220px; }
+.foe-boss .foe-body { height: min(30cqh, 132px, 40cqw); }
+.stage-compact .foe-body { height: min(calc(30cqh * var(--foe-scale, 1)), calc(60px * var(--foe-scale, 1)), 20cqw); }
+.stage-compact .foe-boss .foe-body { height: min(42cqh, 96px, 34cqw); }
 .foe-sprite { position: relative; z-index: 1; height: 100%; display: block; }
 .foe-sprite img { height: 100%; width: auto; }
 .foe-shadow { position: absolute; bottom: -4px; left: 50%; width: 70%; height: 10px; transform: translateX(-50%); background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.6), transparent 70%); }
 .hero .foe-shadow { width: 90%; bottom: -3px; }
-.foe-info { display: flex; flex-direction: column; align-items: center; gap: 2px; width: clamp(70px, 28cqw, 130px); }
+.foe-info { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; max-width: 120px; margin-top: 4px; }
 .foe-info .hpbar { width: 100%; min-width: 0; }
-.foe-name { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.foe-name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .foe-weak { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
 .foe-weak-chip { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; padding: 0 4px 0 1px; background: var(--ink); box-shadow: inset 0 0 0 2px var(--muscle); }
 .foe-targeted .foe-sprite img {
